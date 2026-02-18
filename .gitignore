@@ -10,3 +10,5 @@ dist/
 coverage/
 .vscode/
 .idea/
+.npm-cache/
+*.tgz

@@ -1,11 +1,19 @@
 {
-  "name": "@allanschramm/omni-memory-mcp",
+  "name": "@sharkdyt/omni-memory-mcp",
   "version": "1.0.0",
   "description": "Universal memory MCP server for multi-agent AI workflows. 100% local with SQLite + FTS5.",
   "type": "module",
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "bin": {
     "omni-memory-mcp": "dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -13,14 +21,20 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check && npm run build && npm test"
   },
   "keywords": ["mcp", "memory", "sqlite", "fts5", "agent", "ai", "local"],
   "author": "Allan Schramm",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/allanschramm/omni-memory-mcp.git"
+    "url": "git+https://github.com/allanschramm/omni-memory-mcp.git"
+  },
+  "homepage": "https://github.com/allanschramm/omni-memory-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/allanschramm/omni-memory-mcp/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
@@ -37,5 +51,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

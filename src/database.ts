@@ -5,7 +5,7 @@
 
 import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
-import { join, dirname } from "path";
+import { join, dirname, isAbsolute, resolve, normalize } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { homedir } from "os";
 import type {
@@ -18,17 +18,54 @@ import type {
   SearchResult,
 } from "./types.js";
 
-const DATA_DIR = process.env.OMNI_MEMORY_DIR || join(homedir(), ".omni-memory");
-const DB_PATH = process.env.OMNI_MEMORY_DB || join(DATA_DIR, "omni-memory.db");
+function expandHomePath(inputPath: string): string {
+  if (inputPath === "~") {
+    return homedir();
+  }
+
+  if (inputPath.startsWith("~/") || inputPath.startsWith("~\\")) {
+    return join(homedir(), inputPath.slice(2));
+  }
+
+  return inputPath;
+}
+
+function normalizeUserPath(inputPath: string): string {
+  const trimmedPath = inputPath.trim();
+  const expandedPath = expandHomePath(trimmedPath);
+
+  if (isAbsolute(expandedPath)) {
+    return normalize(expandedPath);
+  }
+
+  return normalize(resolve(process.cwd(), expandedPath));
+}
+
+function resolveStoragePaths(): { dataDir: string; dbPath: string } {
+  const defaultDir = join(homedir(), ".omni-memory");
+  const dataDir = normalizeUserPath(process.env.OMNI_MEMORY_DIR || defaultDir);
+  const dbPath = process.env.OMNI_MEMORY_DB
+    ? normalizeUserPath(process.env.OMNI_MEMORY_DB)
+    : join(dataDir, "omni-memory.db");
+
+  return { dataDir, dbPath };
+}
+
+const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 
 let db: Database.Database | null = null;
 
 function getDatabase(): Database.Database {
   if (db) return db;
 
-  // Ensure directory exists
+  // Ensure storage directories exist
   if (!existsSync(DATA_DIR)) {
     mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  const dbDirectory = dirname(DB_PATH);
+  if (!existsSync(dbDirectory)) {
+    mkdirSync(dbDirectory, { recursive: true });
   }
 
   db = new Database(DB_PATH);
@@ -272,6 +309,8 @@ export function closeDatabase(): void {
     db = null;
   }
 }
+
+export { resolveStoragePaths, normalizeUserPath };
 
 // For testing
 export function resetDatabase(): void {

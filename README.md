@@ -1,43 +1,40 @@
 # Omni Memory MCP
 
-Universal memory for multi-agent AI workflows. 100% local with SQLite + FTS5.
+Universal memory MCP server for multi-agent workflows.  
+100% local with SQLite + FTS5.
+
+## npm Package
+
+- Package: `@sharkdyt/omni-memory-mcp`
+- npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
+- Current `latest`: `1.0.0`
+
+## Why this exists
+
+- Keep AI memory local (no cloud dependency)
+- Reuse the same memory across tools/agents
+- Search fast with SQLite FTS5
 
 ## Features
 
-- **100% Local** - All data stored locally in SQLite, no cloud dependencies
-- **Full-Text Search** - FTS5-powered search across all memories
-- **Multi-Agent** - Share memories between OpenCode, Claude Code, Codex CLI, and more
-- **CRUD Operations** - Complete create, read, update, delete API
-- **Project Organization** - Organize memories by project
-- **Tagging System** - Add tags for easy categorization
-- **Memory Areas** - Four areas: general, snippets, solutions, preferences
+- Local-first storage (SQLite)
+- Full-text search with FTS5
+- MCP-native tools
+- CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
+- Organization by `area`, `project`, and `tags`
 
-## Installation
+## Quick Start (Most Newbie Friendly)
 
-```bash
-# Clone the repository
-git clone https://github.com/allanschramm/omni-memory-mcp.git
-cd omni-memory-mcp
+You do **not** need to set a path to `dist/index.js` if you use `npx`.
 
-# Install dependencies
-npm install
-
-# Build
-npm run build
-```
-
-## Configuration
-
-### OpenCode
-
-Add to `~/.config/opencode/opencode.json`:
+Use this in your MCP client config:
 
 ```json
 {
   "mcpServers": {
     "omni-memory": {
-      "command": "node",
-      "args": ["~/.local/mcp/omni-memory-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@sharkdyt/omni-memory-mcp"],
       "env": {
         "OMNI_MEMORY_DIR": "~/.omni-memory"
       }
@@ -46,26 +43,67 @@ Add to `~/.config/opencode/opencode.json`:
 }
 ```
 
-### Claude Code
+This is the easiest setup because:
+- No manual clone path
+- No manual build path
+- Works after npm registry publish
 
-Add to Claude Code configuration:
+## Path Guide (Relative vs Absolute)
+
+If you prefer running from local source (`dist/index.js`), use an **absolute path**.
+
+- Relative path example (can break): `./dist/index.js`
+- Absolute path example (recommended): full path to file on disk
+
+Why relative paths break:
+- Many MCP clients resolve paths from their own process working directory, not from your config file directory.
+
+### Absolute path examples
+
+Linux:
 
 ```json
 {
-  "mcpServers": {
-    "omni-memory": {
-      "command": "node",
-      "args": ["~/.local/mcp/omni-memory-mcp/dist/index.js"]
-    }
-  }
+  "command": "node",
+  "args": ["/home/your-user/.local/mcp/omni-memory-mcp/dist/index.js"]
 }
 ```
 
+macOS:
+
+```json
+{
+  "command": "node",
+  "args": ["/Users/your-user/.local/mcp/omni-memory-mcp/dist/index.js"]
+}
+```
+
+Windows:
+
+```json
+{
+  "command": "node",
+  "args": ["C:\\Users\\your-user\\.local\\mcp\\omni-memory-mcp\\dist\\index.js"]
+}
+```
+
+Note:
+- `~` is convenient, but not every client expands it consistently on Windows. Absolute paths are safer.
+
+## Install from Source (Local Dev)
+
+```bash
+git clone https://github.com/allanschramm/omni-memory-mcp.git
+cd omni-memory-mcp
+npm install
+npm run build
+```
+
+Then configure your MCP client with `node` + absolute path to `dist/index.js`.
+
 ## Tools
 
-### memory_add
-
-Add a memory to the store.
+### `memory_add`
 
 ```json
 {
@@ -76,9 +114,7 @@ Add a memory to the store.
 }
 ```
 
-### memory_get
-
-Retrieve a specific memory by ID.
+### `memory_get`
 
 ```json
 {
@@ -86,9 +122,7 @@ Retrieve a specific memory by ID.
 }
 ```
 
-### memory_update
-
-Update an existing memory.
+### `memory_update`
 
 ```json
 {
@@ -98,9 +132,7 @@ Update an existing memory.
 }
 ```
 
-### memory_delete
-
-Delete a memory by ID.
+### `memory_delete`
 
 ```json
 {
@@ -108,9 +140,7 @@ Delete a memory by ID.
 }
 ```
 
-### memory_list
-
-List memories with optional filters.
+### `memory_list`
 
 ```json
 {
@@ -121,9 +151,7 @@ List memories with optional filters.
 }
 ```
 
-### memory_search
-
-Full-text search across all memories.
+### `memory_search`
 
 ```json
 {
@@ -136,79 +164,62 @@ Full-text search across all memories.
 ## Memory Areas
 
 | Area | Description |
-|------|-------------|
-| `general` | General memories and notes |
+| --- | --- |
+| `general` | General notes |
 | `snippets` | Code snippets and patterns |
 | `solutions` | Problem-solution pairs |
-| `preferences` | User preferences and settings |
+| `preferences` | User/team preferences |
 
 ## Data Storage
 
-All data is stored in `~/.omni-memory/`:
+Default directory:
 
-```
+```text
 ~/.omni-memory/
-├── omni-memory.db      # SQLite database
-├── omni-memory.db-wal  # Write-ahead log
-└── omni-memory.db-shm  # Shared memory
+|- omni-memory.db
+|- omni-memory.db-wal
+`- omni-memory.db-shm
 ```
 
-### Environment Variables
+Environment variables:
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| --- | --- | --- |
 | `OMNI_MEMORY_DIR` | `~/.omni-memory` | Data storage directory |
-| `OMNI_MEMORY_DB` | `{OMNI_MEMORY_DIR}/omni-memory.db` | SQLite database path |
+| `OMNI_MEMORY_DB` | `{OMNI_MEMORY_DIR}/omni-memory.db` | SQLite DB file path |
 
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build TypeScript
-npm run build
-
-# Watch mode
-npm run dev
-
-# Run tests
-npm test
-
-# Type check
 npm run check
+npm run build
+npm test
 ```
 
-## Architecture
+Extra commands:
 
-```
-┌─────────────────────────────────────────┐
-│         MCP Client (OpenCode/etc)       │
-└──────────────┬──────────────────────────┘
-               │ stdio
-┌──────────────▼──────────────────────────┐
-│      Omni Memory MCP Server (TS)        │
-│  ┌─────────────────────────────────┐    │
-│  │  Tools: add, get, update,      │    │
-│  │  delete, list, search          │    │
-│  └─────────────────────────────────┘    │
-│  ┌─────────────────────────────────┐    │
-│  │  SQLite + FTS5                  │    │
-│  │  (better-sqlite3)              │    │
-│  └─────────────────────────────────┘    │
-└─────────────────────────────────────────┘
+```bash
+npm run dev    # watch mode
+npm run start  # run server from dist/
 ```
 
-## Comparison
+## Publish to npm
 
-| Feature | Omni Memory | Mem0 | AgentZero |
-|---------|-------------|------|-----------|
-| **Local-first** | ✅ | Partial | ✅ |
-| **Zero dependencies** | ✅ SQLite only | ChromaDB | FAISS |
-| **No LLM required** | ✅ | ❌ | ❌ |
-| **MCP native** | ✅ | Partial | ❌ |
-| **Full-text search** | ✅ FTS5 | ❌ | ❌ |
+Checklist:
+
+```bash
+npm whoami
+npm run check
+npm test
+npm pack
+npm publish --access public
+```
+
+Notes:
+- Package name is scoped: `@sharkdyt/omni-memory-mcp`
+- `publishConfig.access=public` is already configured in `package.json`
 
 ## License
 
-Apache 2.0 - See [LICENSE](LICENSE)
+Apache 2.0. See `LICENSE`.
