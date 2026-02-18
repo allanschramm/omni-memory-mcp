@@ -9,6 +9,11 @@ Universal memory MCP server for multi-agent workflows.
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
 - Current `latest`: `1.0.0`
 
+## Project Memory
+
+This project does not keep local `memory-bank/` files.
+Operational context is stored through Omni Memory itself.
+
 ## Why this exists
 
 - Keep AI memory local (no cloud dependency)
