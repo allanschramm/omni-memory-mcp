@@ -1,0 +1,41 @@
+{
+  "name": "@allanschramm/omni-memory-mcp",
+  "version": "1.0.0",
+  "description": "Universal memory MCP server for multi-agent AI workflows. 100% local with SQLite + FTS5.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "omni-memory-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "tsc --noEmit"
+  },
+  "keywords": ["mcp", "memory", "sqlite", "fts5", "agent", "ai", "local"],
+  "author": "Allan Schramm",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/allanschramm/omni-memory-mcp.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "better-sqlite3": "^11.0.0",
+    "uuid": "^10.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
