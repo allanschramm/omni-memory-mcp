@@ -1,6 +1,6 @@
 {
   "name": "@sharkdyt/omni-memory-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Universal memory MCP server for multi-agent AI workflows. 100% local with SQLite + FTS5.",
   "type": "module",
   "main": "dist/index.js",
@@ -25,7 +25,15 @@
     "prepack": "npm run build",
     "prepublishOnly": "npm run check && npm run build && npm test"
   },
-  "keywords": ["mcp", "memory", "sqlite", "fts5", "agent", "ai", "local"],
+  "keywords": [
+    "mcp",
+    "memory",
+    "sqlite",
+    "fts5",
+    "agent",
+    "ai",
+    "local"
+  ],
   "author": "Allan Schramm",
   "license": "Apache-2.0",
   "repository": {
