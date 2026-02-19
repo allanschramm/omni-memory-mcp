@@ -7,7 +7,7 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.0`
+- Current `latest`: `1.0.2`
 
 ## Project Memory
 
@@ -27,12 +27,45 @@ Operational context is stored through Omni Memory itself.
 - MCP-native tools
 - CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
 - Organization by `area`, `project`, and `tags`
+- Shared long-term memory across multiple projects and multiple coding agents/clients
+- Canonical MCP config + client adapters (OpenCode, Codex, Cursor)
+
+## Cross-Client MCP Standard
+
+This project keeps one canonical MCP config and generates client-specific files.
+
+Canonical source:
+
+- `config/mcp/servers.json`
+
+Generate adapters:
+
+```bash
+npm run mcp:generate
+```
+
+Validate adapters:
+
+```bash
+npm run mcp:validate
+```
+
+Generated files:
+
+- `config/mcp/generated/opencode.windows.json`
+- `config/mcp/generated/opencode.posix.json`
+- `config/mcp/generated/codex.windows.json`
+- `config/mcp/generated/codex.posix.json`
+- `config/mcp/generated/cursor.windows.json`
+- `config/mcp/generated/cursor.posix.json`
+
+Compatibility matrix:
+
+- `docs/mcp-compatibility-matrix.md`
 
 ## Quick Start (Most Newbie Friendly)
 
-You do **not** need to set a path to `dist/index.js` if you use `npx`.
-
-Use this in your MCP client config:
+If your MCP client supports `command` + `args` + `env`, use:
 
 ```json
 {
@@ -52,6 +85,27 @@ This is the easiest setup because:
 - No manual clone path
 - No manual build path
 - Works after npm registry publish
+
+### OpenCode format
+
+OpenCode validates MCP local servers with:
+- `command` as a single array (command + args)
+- `environment` (not `env`)
+
+```json
+{
+  "mcp": {
+    "omni-memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@sharkdyt/omni-memory-mcp"],
+      "environment": {
+        "OMNI_MEMORY_DIR": "C:\\Users\\your-user\\.omni-memory"
+      },
+      "enabled": true
+    }
+  }
+}
+```
 
 ## Path Guide (Relative vs Absolute)
 
@@ -105,6 +159,16 @@ npm run build
 ```
 
 Then configure your MCP client with `node` + absolute path to `dist/index.js`.
+
+## OpenCode / Codex / Cursor
+
+Instead of writing each config by hand, generate client-specific adapters:
+
+```bash
+npm run mcp:generate
+```
+
+Then copy the generated file for your client/platform from `config/mcp/generated/`.
 
 ## Tools
 
@@ -208,22 +272,6 @@ Extra commands:
 npm run dev    # watch mode
 npm run start  # run server from dist/
 ```
-
-## Publish to npm
-
-Checklist:
-
-```bash
-npm whoami
-npm run check
-npm test
-npm pack
-npm publish --access public
-```
-
-Notes:
-- Package name is scoped: `@sharkdyt/omni-memory-mcp`
-- `publishConfig.access=public` is already configured in `package.json`
 
 ## License
 

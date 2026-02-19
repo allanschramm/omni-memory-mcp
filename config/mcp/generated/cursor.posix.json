@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "omni-memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sharkdyt/omni-memory-mcp"
+      ],
+      "env": {
+        "OMNI_MEMORY_DIR": "/home/your-user/.omni-memory"
+      }
+    }
+  }
+}

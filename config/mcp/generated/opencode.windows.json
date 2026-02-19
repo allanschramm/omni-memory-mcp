@@ -1,0 +1,17 @@
+{
+  "mcp": {
+    "omni-memory": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@sharkdyt/omni-memory-mcp"
+      ],
+      "environment": {
+        "OMNI_MEMORY_DIR": "C:\\Users\\your-user\\.omni-memory"
+      },
+      "enabled": true,
+      "timeout": 5000
+    }
+  }
+}

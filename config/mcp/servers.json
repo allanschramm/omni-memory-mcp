@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "omni-memory",
+      "transport": "local",
+      "command": "npx",
+      "args": ["-y", "@sharkdyt/omni-memory-mcp"],
+      "env": {
+        "OMNI_MEMORY_DIR": "${HOME}/.omni-memory"
+      },
+      "enabled": true,
+      "timeoutMs": 5000
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@sharkdyt/omni-memory-mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Universal memory MCP server for multi-agent AI workflows. 100% local with SQLite + FTS5.",
   "type": "module",
   "main": "dist/index.js",
@@ -22,6 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "tsc --noEmit",
+    "mcp:generate": "node scripts/generate-mcp-configs.mjs",
+    "mcp:validate": "node scripts/validate-mcp-configs.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run check && npm run build && npm test"
   },
