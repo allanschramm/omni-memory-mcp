@@ -14,11 +14,23 @@ import { schema as updateSchema, handler as updateHandler } from "./tools/update
 import { schema as deleteSchema, handler as deleteHandler } from "./tools/delete.js";
 import { schema as listSchema, handler as listHandler } from "./tools/list.js";
 import { schema as searchSchema, handler as searchHandler } from "./tools/search.js";
+import { schema as statsSchema, handler as statsHandler } from "./tools/stats.js";
+
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Read version dynamically from package.json to stay in sync
+const packageJsonPath = join(__dirname, "..", "package.json");
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf-8"));
 
 // Create MCP server
 const server = new McpServer({
   name: "omni-memory-mcp",
-  version: "1.0.0",
+  version: packageJson.version || "1.0.0",
 });
 
 // Register tools
@@ -62,6 +74,13 @@ server.tool(
   "Full-text search across all memories using FTS5.",
   searchSchema,
   searchHandler
+);
+
+server.tool(
+  "memory_stats",
+  "Get statistics about the Omni Memory database, including total memories, size on disk, and counts by area and project.",
+  statsSchema,
+  statsHandler
 );
 
 // Graceful shutdown

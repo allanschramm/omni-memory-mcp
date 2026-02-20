@@ -11,11 +11,12 @@ export const schema = {
   area: z.enum(["general", "snippets", "solutions", "preferences"]).optional().describe("Filter by area"),
   project: z.string().optional().describe("Filter by project"),
   limit: z.number().min(1).max(50).optional().describe("Max results (default: 10, max: 50)"),
+  enableAdvancedSyntax: z.boolean().optional().describe("Enable FTS5 boolean and wildcard advanced syntax"),
 };
 
-export const handler: ToolCallback<typeof schema> = async ({ query, area, project, limit }) => {
+export const handler: ToolCallback<typeof schema> = async ({ query, area, project, limit, enableAdvancedSyntax }) => {
   try {
-    const results = searchMemories({ query, area, project, limit });
+    const results = searchMemories({ query, area, project, limit, enableAdvancedSyntax });
 
     if (results.length === 0) {
       return {

@@ -7,7 +7,7 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.3`
+- Current `latest`: `1.0.4`
 
 ## Project Memory
 
@@ -26,6 +26,7 @@ Operational context is stored through Omni Memory itself.
 - Full-text search with FTS5
 - MCP-native tools
 - CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
+- Diagnostic tools (`memory_stats`)
 - Organization by `area`, `project`, and `tags`
 - Shared long-term memory across multiple projects and multiple coding agents/clients
 - Canonical MCP config + client adapters (OpenCode, Codex, Cursor)
@@ -236,9 +237,19 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 {
   "query": "typescript configuration",
   "project": "my-project",
-  "limit": 10
+  "limit": 10,
+  "enableAdvancedSyntax": false
 }
 ```
+
+*Note: `enableAdvancedSyntax` allows FTS5 boolean logic (e.g. `"typescript" AND "react" NOT "vue"`) but requires a strictly valid FTS5 query or it will throw an error.*
+
+### `memory_stats`
+
+```json
+{}
+```
+*Returns total memories, size on disk, and breakdown by project and area.*
 
 ## Memory Areas
 

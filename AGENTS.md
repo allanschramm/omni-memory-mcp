@@ -30,6 +30,20 @@ For every meaningful project change:
    - next steps.
 3. If Omni Memory write fails in this project, continue the work and report the failure explicitly.
 
+## Publish Ownership Policy
+
+- Package publish ownership is user-side by default.
+- Agent default behavior: prepare release artifacts only (version bump, changelog/docs sync, tarball via `npm pack`).
+- Do not attempt `npm publish` unless the user explicitly asks in that same step and confirms credentials/token are ready.
+- If publish is attempted and fails due to auth/scope/token, record this as process memory and fall back to handoff for user-side publish.
+
+## Supabase MCP Auth Note
+
+- Before any write operation in Supabase MCP, ensure auth session is active with:
+  - `codex mcp login supabase`
+- Symptom of missing/expired auth is write failure despite reachable MCP endpoint.
+- If reads work but writes fail with read-only/auth errors, re-run Supabase MCP login and re-test with a small write query.
+
 ## Project Structure
 
 ```

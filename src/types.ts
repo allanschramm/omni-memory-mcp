@@ -49,10 +49,18 @@ export interface SearchMemoryArgs {
   area?: MemoryArea;
   project?: string;
   limit?: number;
+  enableAdvancedSyntax?: boolean;
 }
 
 export interface SearchResult extends Memory {
   score: number;
+}
+
+export interface MemoryStats {
+  total_memories: number;
+  by_area: Record<string, number>;
+  by_project: Record<string, number>;
+  total_size_bytes: number;
 }
 
 export interface AddMemoryResult {

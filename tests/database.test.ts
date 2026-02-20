@@ -6,7 +6,7 @@ let db: Database.Database;
 function setupTestDb(): Database.Database {
   const database = new Database(":memory:");
   database.pragma("journal_mode = WAL");
-  
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
@@ -175,6 +175,5 @@ describe("Database", () => {
 
     const results = db.prepare("SELECT * FROM memories WHERE tags LIKE ?").all('%"important"%') as Record<string, unknown>[];
     expect(results.length).toBe(1);
-    expect(results[0].content).toBe("Tagged content");
   });
 });

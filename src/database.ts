@@ -16,6 +16,7 @@ import type {
   ListMemoryArgs,
   SearchMemoryArgs,
   SearchResult,
+  MemoryStats,
 } from "./types.js";
 
 function expandHomePath(inputPath: string): string {
@@ -45,7 +46,7 @@ function resolveStoragePaths(): { dataDir: string; dbPath: string } {
   const defaultDir = join(homedir(), ".omni-memory");
   const dataDir = normalizeUserPath(process.env.OMNI_MEMORY_DIR || defaultDir);
   const dbPath = process.env.OMNI_MEMORY_DB
-    ? normalizeUserPath(process.env.OMNI_MEMORY_DB)
+    ? (process.env.OMNI_MEMORY_DB === ":memory:" ? ":memory:" : normalizeUserPath(process.env.OMNI_MEMORY_DB))
     : join(dataDir, "omni-memory.db");
 
   return { dataDir, dbPath };
@@ -63,9 +64,11 @@ function getDatabase(): Database.Database {
     mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  const dbDirectory = dirname(DB_PATH);
-  if (!existsSync(dbDirectory)) {
-    mkdirSync(dbDirectory, { recursive: true });
+  if (DB_PATH !== ":memory:") {
+    const dbDirectory = dirname(DB_PATH);
+    if (!existsSync(dbDirectory)) {
+      mkdirSync(dbDirectory, { recursive: true });
+    }
   }
 
   db = new Database(DB_PATH);
@@ -226,12 +229,56 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   return rows.map(rowToMemory);
 }
 
+export function getStats(): MemoryStats {
+  const database = getDatabase();
+
+  const total = (database.prepare("SELECT count(*) as c FROM memories").get() as any)?.c || 0;
+
+  const byAreaRows = database.prepare("SELECT area, count(*) as c FROM memories GROUP BY area").all() as any[];
+  const by_area = byAreaRows.reduce((acc, row) => {
+    acc[row.area || "general"] = row.c;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const byProjectRows = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project").all() as any[];
+  const by_project = byProjectRows.reduce((acc, row) => {
+    acc[row.project || "unassigned"] = row.c;
+    return acc;
+  }, {} as Record<string, number>);
+
+  let total_size_bytes = 0;
+  if (DB_PATH !== ":memory:" && existsSync(DB_PATH)) {
+    try {
+      const stats = require("fs").statSync(DB_PATH);
+      total_size_bytes = stats.size;
+    } catch {
+      // Ignore if stat fails
+    }
+  }
+
+  return {
+    total_memories: total,
+    by_area,
+    by_project,
+    total_size_bytes,
+  };
+}
+
 export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
   const database = getDatabase();
   const limit = Math.min(args.limit || 10, 50);
 
+  // Helper to sanitize FTS5 query to prevent syntax errors on special chars
+  // Removes unmatched quotes and escapes FTS keywords if present
+  const sanitizeFtsQuery = (rawQuery: string): string => {
+    let clean = rawQuery.replace(/[\^+\-*'"~]/g, " "); // Replace FTS5 syntax chars with spaces
+    // Alternatively, you could wrap the whole thing in double quotes, 
+    // but simply stripping operators guarantees no parse error for plain text queries
+    return clean.trim() ? `"${clean.replace(/"/g, '""').trim()}"` : rawQuery;
+  };
+
   // Build FTS5 query with filters
-  let ftsQuery = args.query;
+  let ftsQuery = args.enableAdvancedSyntax ? args.query : sanitizeFtsQuery(args.query);
 
   // Add area filter to query
   if (args.area) {
@@ -269,17 +316,35 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
       score: Math.abs(row.score as number) || 0,
     }));
   } catch (error) {
+    if (args.enableAdvancedSyntax) {
+      throw new Error(`Invalid FTS5 advanced syntax: ${error instanceof Error ? error.message : String(error)}`);
+    }
     // FTS5 might fail on special characters, fallback to LIKE search
     return fallbackSearch(args);
   }
 }
 
-function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
+export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const database = getDatabase();
   const limit = Math.min(args.limit || 10, 50);
 
-  let sql = "SELECT * FROM memories WHERE content LIKE ?";
-  const params: (string | number)[] = [`%${args.query}%`];
+  // Split query into individual words, ignore empty spaces
+  const words = args.query.trim().split(/\s+/).filter(Boolean);
+
+  let sql = "SELECT * FROM memories WHERE 1=1";
+  const params: (string | number)[] = [];
+
+  // If there are words, add a LIKE condition for each word
+  if (words.length > 0) {
+    for (const word of words) {
+      sql += " AND content LIKE ?";
+      params.push(`%${word}%`);
+    }
+  } else {
+    // Fallback if empty query
+    sql += " AND content LIKE ?";
+    params.push(`%${args.query}%`);
+  }
 
   if (args.area) {
     sql += " AND area = ?";
