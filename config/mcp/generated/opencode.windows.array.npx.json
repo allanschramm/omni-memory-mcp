@@ -3,9 +3,9 @@
     "omni-memory": {
       "type": "local",
       "command": [
-        "cmd",
-        "/c",
-        "npx -y @sharkdyt/omni-memory-mcp || node C:\\Users\\your-user\\.local\\mcp\\omni-memory-mcp\\dist\\index.js"
+        "npx",
+        "-y",
+        "@sharkdyt/omni-memory-mcp"
       ],
       "environment": {
         "OMNI_MEMORY_DIR": "C:\\Users\\your-user\\.omni-memory"

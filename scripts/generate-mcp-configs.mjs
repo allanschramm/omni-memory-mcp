@@ -32,14 +32,44 @@ if (canonicalErrors.length > 0) {
 
 const generated = generateAll(config, { platform });
 for (const [currentPlatform, clients] of Object.entries(generated)) {
-  for (const [client, output] of Object.entries(clients)) {
-    const errors = validateGenerated(client, output);
-    if (errors.length > 0) {
+  const opencodeDefaultErrors = validateGenerated("opencode", clients.opencode, {
+    platform: currentPlatform,
+    profileName: "default",
+  });
+  if (opencodeDefaultErrors.length > 0) {
+    fail([
+      `Generated config validation failed for opencode/${currentPlatform}/default:`,
+      ...opencodeDefaultErrors.map((error) => `- ${error}`),
+    ]);
+  }
+
+  for (const [profileName, output] of Object.entries(clients.opencodeProfiles)) {
+    const profileErrors = validateGenerated("opencode", output, {
+      platform: currentPlatform,
+      profileName,
+    });
+    if (profileErrors.length > 0) {
       fail([
-        `Generated config validation failed for ${client}/${currentPlatform}:`,
-        ...errors.map((error) => `- ${error}`),
+        `Generated config validation failed for opencode/${currentPlatform}/${profileName}:`,
+        ...profileErrors.map((error) => `- ${error}`),
       ]);
     }
+  }
+
+  const codexErrors = validateGenerated("codex", clients.codex);
+  if (codexErrors.length > 0) {
+    fail([
+      `Generated config validation failed for codex/${currentPlatform}:`,
+      ...codexErrors.map((error) => `- ${error}`),
+    ]);
+  }
+
+  const cursorErrors = validateGenerated("cursor", clients.cursor);
+  if (cursorErrors.length > 0) {
+    fail([
+      `Generated config validation failed for cursor/${currentPlatform}:`,
+      ...cursorErrors.map((error) => `- ${error}`),
+    ]);
   }
 }
 

@@ -29,11 +29,32 @@ if (canonicalErrors.length > 0) {
 const generated = generateAll(config, { platform });
 const generationErrors = [];
 for (const [currentPlatform, clients] of Object.entries(generated)) {
-  for (const [client, output] of Object.entries(clients)) {
-    const errors = validateGenerated(client, output);
+  const opencodeDefaultErrors = validateGenerated("opencode", clients.opencode, {
+    platform: currentPlatform,
+    profileName: "default",
+  });
+  for (const error of opencodeDefaultErrors) {
+    generationErrors.push(`opencode/${currentPlatform}/default: ${error}`);
+  }
+
+  for (const [profileName, output] of Object.entries(clients.opencodeProfiles)) {
+    const errors = validateGenerated("opencode", output, {
+      platform: currentPlatform,
+      profileName,
+    });
     for (const error of errors) {
-      generationErrors.push(`${client}/${currentPlatform}: ${error}`);
+      generationErrors.push(`opencode/${currentPlatform}/${profileName}: ${error}`);
     }
+  }
+
+  const codexErrors = validateGenerated("codex", clients.codex);
+  for (const error of codexErrors) {
+    generationErrors.push(`codex/${currentPlatform}: ${error}`);
+  }
+
+  const cursorErrors = validateGenerated("cursor", clients.cursor);
+  for (const error of cursorErrors) {
+    generationErrors.push(`cursor/${currentPlatform}: ${error}`);
   }
 }
 

@@ -1,5 +1,13 @@
 {
   "version": 1,
+  "profiles": {
+    "opencode": {
+      "enableDialects": ["array", "string-args"],
+      "enableFallbackDist": true,
+      "distPathWindows": "C:\\Users\\your-user\\.local\\mcp\\omni-memory-mcp\\dist\\index.js",
+      "distPathPosix": "/home/your-user/.local/mcp/omni-memory-mcp/dist/index.js"
+    }
+  },
   "servers": [
     {
       "id": "omni-memory",

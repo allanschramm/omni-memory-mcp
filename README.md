@@ -7,7 +7,7 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.2`
+- Current `latest`: `1.0.3`
 
 ## Project Memory
 
@@ -54,6 +54,12 @@ Generated files:
 
 - `config/mcp/generated/opencode.windows.json`
 - `config/mcp/generated/opencode.posix.json`
+- `config/mcp/generated/opencode.windows.array.npx.json`
+- `config/mcp/generated/opencode.windows.string-args.npx.json`
+- `config/mcp/generated/opencode.windows.array.fallback-dist.json`
+- `config/mcp/generated/opencode.posix.array.npx.json`
+- `config/mcp/generated/opencode.posix.string-args.npx.json`
+- `config/mcp/generated/opencode.posix.array.fallback-dist.json`
 - `config/mcp/generated/codex.windows.json`
 - `config/mcp/generated/codex.posix.json`
 - `config/mcp/generated/cursor.windows.json`
@@ -86,26 +92,24 @@ This is the easiest setup because:
 - No manual build path
 - Works after npm registry publish
 
-### OpenCode format
+### OpenCode compatibility profiles
 
-OpenCode validates MCP local servers with:
-- `command` as a single array (command + args)
-- `environment` (not `env`)
+OpenCode support can vary by client version and environment.  
+This repository now generates three OpenCode profiles for each platform:
 
-```json
-{
-  "mcp": {
-    "omni-memory": {
-      "type": "local",
-      "command": ["npx", "-y", "@sharkdyt/omni-memory-mcp"],
-      "environment": {
-        "OMNI_MEMORY_DIR": "C:\\Users\\your-user\\.omni-memory"
-      },
-      "enabled": true
-    }
-  }
-}
-```
+- `array.npx`: `command` as array (`["npx","-y","@sharkdyt/omni-memory-mcp"]`)
+- `string-args.npx`: `command` as string + `args`
+- `array.fallback-dist`: shell command that tries `npx` and falls back to local `dist/index.js`
+
+Recommended default for OpenCode:
+
+- `config/mcp/generated/opencode.<platform>.json` (this points to `array.fallback-dist`)
+
+If you prefer explicit profile selection, copy one of:
+
+- `config/mcp/generated/opencode.<platform>.array.npx.json`
+- `config/mcp/generated/opencode.<platform>.string-args.npx.json`
+- `config/mcp/generated/opencode.<platform>.array.fallback-dist.json`
 
 ## Path Guide (Relative vs Absolute)
 
@@ -169,6 +173,12 @@ npm run mcp:generate
 ```
 
 Then copy the generated file for your client/platform from `config/mcp/generated/`.
+
+### OpenCode troubleshooting priority
+
+1. Use `opencode.<platform>.json` first (default fallback profile).
+2. If your OpenCode build prefers native `npx` only, try `opencode.<platform>.array.npx.json`.
+3. If your OpenCode build requires `command` string + `args`, use `opencode.<platform>.string-args.npx.json`.
 
 ## Tools
 
@@ -272,6 +282,29 @@ Extra commands:
 npm run dev    # watch mode
 npm run start  # run server from dist/
 ```
+
+## Documentation and Memory Hygiene
+
+For every meaningful project change, keep both sources of truth updated:
+
+1. Repository docs (`README.md`, `docs/*`, compatibility/config docs) must reflect current behavior.
+2. Omni Memory must receive a concise project memory entry with:
+   - what changed,
+   - why it changed,
+   - constraints/assumptions,
+   - next steps (if any).
+
+Minimum release/update gate:
+
+1. `npm run mcp:generate`
+2. `npm run mcp:validate`
+3. `npm run check`
+4. Update docs for any behavior/config change
+5. Add/update important project memory in Omni Memory
+
+Operational checklist:
+
+- `docs/release-checklist.md`
 
 ## License
 

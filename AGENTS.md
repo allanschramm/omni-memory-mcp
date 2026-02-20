@@ -2,6 +2,34 @@
 
 Universal memory MCP server for multi-agent AI workflows. Uses SQLite + FTS5 for 100% local, offline-capable memory storage and retrieval.
 
+## Core Priorities
+
+1. Cross-agent compatibility is a core requirement (OpenCode, Codex, Cursor).
+2. Documentation and project memory must stay synchronized after meaningful changes.
+3. Memory-tool failures must not block core engineering tasks in this repository.
+
+## Cross-Agent Compatibility Policy
+
+- Canonical MCP source of truth: `config/mcp/servers.json`
+- Always keep generated adapters current in `config/mcp/generated/`
+- OpenCode must be treated as multi-dialect:
+  - `array.npx`
+  - `string-args.npx`
+  - `array.fallback-dist` (tries `npx`, falls back to local `dist/index.js`)
+- Default OpenCode generated config (`opencode.<platform>.json`) should remain aligned with fallback profile.
+
+## Documentation and Memory Sync Policy
+
+For every meaningful project change:
+
+1. Update docs (`README.md`, `docs/*`) for behavior/config/compatibility changes.
+2. Add/update Omni Memory entry with:
+   - what changed,
+   - why,
+   - assumptions/constraints,
+   - next steps.
+3. If Omni Memory write fails in this project, continue the work and report the failure explicitly.
+
 ## Project Structure
 
 ```
@@ -134,4 +162,10 @@ describe("MemoryDatabase", () => {
 2. **ESM only** - `import/export` with `.js` extension for locals
 3. **Sync DB** - `better-sqlite3` is synchronous, no async/await for DB
 4. **Console.error for logs** - stdout is MCP protocol
-5. Run `npm run check && npm run build && npm test` before committing
+5. Run release/change gate before completion:
+   - `npm run mcp:generate`
+   - `npm run mcp:validate`
+   - `npm run check`
+   - `npm run build`
+   - `npm test` (or document exact environment limitation)
+6. Keep version metadata consistent across package/docs/runtime-facing surfaces.

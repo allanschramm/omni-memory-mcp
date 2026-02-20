@@ -2,10 +2,10 @@
   "mcp": {
     "omni-memory": {
       "type": "local",
-      "command": [
-        "sh",
-        "-lc",
-        "npx -y @sharkdyt/omni-memory-mcp || node /home/your-user/.local/mcp/omni-memory-mcp/dist/index.js"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@sharkdyt/omni-memory-mcp"
       ],
       "environment": {
         "OMNI_MEMORY_DIR": "/home/your-user/.omni-memory"
