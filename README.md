@@ -7,7 +7,7 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.4`
+- Current `latest`: `1.0.5`
 
 ## Project Memory
 
@@ -25,7 +25,10 @@ Operational context is stored through Omni Memory itself.
 - Local-first storage (SQLite)
 - Full-text search with FTS5
 - MCP-native tools
+- **Progressive Disclosure:** Searches return metadata and summaries instead of full text to prevent LLM context overflow.
+- **Active Forgetting Tracking:** Read actions (`memory_get`) increment `access_count` and update `accessed_at`.
 - CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
+- Context optimization tools (`memory_prune`)
 - Diagnostic tools (`memory_stats`)
 - Organization by `area`, `project`, and `tags`
 - Shared long-term memory across multiple projects and multiple coding agents/clients
@@ -187,14 +190,20 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 
 ```json
 {
+  "name": "User typescript preferences",
   "content": "User prefers TypeScript with strict mode",
   "area": "preferences",
   "project": "my-project",
-  "tags": ["typescript", "coding-style"]
+  "tags": ["typescript", "coding-style"],
+  "metadata": {
+    "source": "conversation setup"
+  }
 }
 ```
 
 ### `memory_get`
+
+*Note: Fetching a memory via `memory_get` registers an access (increments `access_count` and updates `accessed_at`), indicating the memory is actively used.*
 
 ```json
 {
@@ -207,10 +216,14 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 ```json
 {
   "id": "abc123",
+  "name": "Updated typescript preferences",
   "content": "Updated content",
+  "project": null,
+  "metadata": null,
   "tags": ["new-tag"]
 }
 ```
+*Use `null` for `project` or `metadata` to clear those values.*
 
 ### `memory_delete`
 
@@ -221,6 +234,8 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 ```
 
 ### `memory_list`
+
+*Note: Enforces Progressive Disclosure. It returns only IDs, Names, and metadata. You must call `memory_get` with the specific ID to read the full content.*
 
 ```json
 {
@@ -233,16 +248,21 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 
 ### `memory_search`
 
+*Note: Enforces Progressive Disclosure. It returns only IDs, Names, and metadata. You must call `memory_get` with the specific ID to read the full content.*
+
 ```json
 {
   "query": "typescript configuration",
   "project": "my-project",
   "limit": 10,
-  "enableAdvancedSyntax": false
+  "enableAdvancedSyntax": false,
+  "search_mode": "balanced"
 }
 ```
 
 *Note: `enableAdvancedSyntax` allows FTS5 boolean logic (e.g. `"typescript" AND "react" NOT "vue"`) but requires a strictly valid FTS5 query or it will throw an error.*
+*Note: `search_mode` tunes ranking only. `balanced` is the default, `exact` boosts exact title matches harder, and `broad` is more permissive for content-heavy results.*
+*Search results include a compact `Match:` explanation showing which indexed fields contributed to the result.*
 
 ### `memory_stats`
 
@@ -250,6 +270,18 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 {}
 ```
 *Returns total memories, size on disk, and breakdown by project and area.*
+
+### `memory_prune`
+
+*Note: Cleans up memories that have decayed below a specific score dynamically calculated based on `created_at`, `accessed_at`, and `access_count`.*
+
+```json
+{
+  "threshold_score": 0,
+  "dry_run": true
+}
+```
+*Always use `dry_run: true` first to see how many and which memories would be pruned before running the destructible cleanup.*
 
 ## Memory Areas
 

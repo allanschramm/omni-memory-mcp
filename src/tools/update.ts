@@ -8,13 +8,15 @@ import type { ToolCallback } from "./index.js";
 
 export const schema = {
   id: z.string().describe("The memory ID to update"),
+  name: z.string().optional().describe("New summary or title (optional)"),
   content: z.string().optional().describe("New content (optional)"),
   area: z.enum(["general", "snippets", "solutions", "preferences"]).optional().describe("New area (optional)"),
   project: z.string().nullable().optional().describe("New project (optional, null to clear)"),
   tags: z.array(z.string()).optional().describe("New tags (optional)"),
+  metadata: z.record(z.unknown()).nullable().optional().describe("New metadata (optional, null to clear)"),
 };
 
-export const handler: ToolCallback<typeof schema> = async ({ id, content, area, project, tags }) => {
+export const handler: ToolCallback<typeof schema> = async ({ id, name, content, area, project, tags, metadata }) => {
   try {
     // Check if memory exists
     const existing = getMemory(id);
@@ -30,7 +32,7 @@ export const handler: ToolCallback<typeof schema> = async ({ id, content, area, 
       };
     }
 
-    const result = updateMemory({ id, content, area, project: project ?? undefined, tags });
+    const result = updateMemory({ id, name, content, area, project, tags, metadata });
 
     if (result.changes === 0) {
       return {
