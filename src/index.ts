@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { schema as addSchema, handler as addHandler } from "./tools/add.js";
+import { schema as upsertSchema, handler as upsertHandler } from "./tools/upsert.js";
 import { schema as getSchema, handler as getHandler } from "./tools/get.js";
 import { schema as updateSchema, handler as updateHandler } from "./tools/update.js";
 import { schema as deleteSchema, handler as deleteHandler } from "./tools/delete.js";
@@ -40,6 +41,13 @@ server.tool(
   "Add a memory to the universal memory store. Memories can be searched and retrieved later.",
   addSchema,
   addHandler
+);
+
+server.tool(
+  "memory_upsert",
+  "Create a new memory or update an existing canonical memory when there is one clear match.",
+  upsertSchema,
+  upsertHandler
 );
 
 server.tool(
