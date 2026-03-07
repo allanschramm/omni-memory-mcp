@@ -27,7 +27,7 @@ Operational context is stored through Omni Memory itself.
 - MCP-native tools
 - **Progressive Disclosure:** Searches return metadata and summaries instead of full text to prevent LLM context overflow.
 - **Active Forgetting Tracking:** Read actions (`memory_get`) increment `access_count` and update `accessed_at`.
-- CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
+- CRUD operations (`memory_add`, `memory_upsert`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
 - Context optimization tools (`memory_prune`)
 - Diagnostic tools (`memory_stats`)
 - Organization by `area`, `project`, and `tags`
@@ -200,6 +200,23 @@ Then copy the generated file for your client/platform from `config/mcp/generated
   }
 }
 ```
+
+Use `memory_add` for clearly new, one-off memories.
+
+### `memory_upsert`
+
+```json
+{
+  "name": "User typescript preferences",
+  "content": "User prefers TypeScript with strict mode",
+  "project": "my-project",
+  "tags": ["typescript", "coding-style"],
+  "allow_create": true
+}
+```
+
+*Note: `memory_upsert` is intentionally conservative. It uses normalized `name + project` matching, updates only when there is one clear candidate, and refuses to write when the match is ambiguous.*
+*Use `memory_upsert` before `memory_add` for durable facts, preferences, and evolving project memory.*
 
 ### `memory_get`
 

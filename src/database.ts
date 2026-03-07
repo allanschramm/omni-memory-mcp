@@ -12,6 +12,8 @@ import type {
   Memory,
   MemoryArea,
   AddMemoryArgs,
+  UpsertMemoryArgs,
+  UpsertMemoryResult,
   UpdateMemoryArgs,
   ListMemoryArgs,
   SearchMemoryArgs,
@@ -245,6 +247,15 @@ function normalizeForExactMatch(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function normalizeMemoryName(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = normalizeForExactMatch(value);
+  return normalized.length > 0 ? normalized : null;
+}
+
 function formatMatchExplanation(fields: MatchField[]): string {
   return fields.length > 0 ? `matched ${fields.join(", ")}` : "matched indexed fields";
 }
@@ -312,6 +323,32 @@ function getMemoryRecord(id: string): Memory | null {
   return row ? rowToMemory(row) : null;
 }
 
+function findMemoriesByNormalizedName(matchName: string, project: string | null | undefined): Memory[] {
+  const database = getDatabase();
+  const normalizedTarget = normalizeMemoryName(matchName);
+
+  if (!normalizedTarget) {
+    return [];
+  }
+
+  let sql = "SELECT * FROM memories WHERE name IS NOT NULL";
+  const params: Array<string | null> = [];
+
+  if (project === undefined || project === null) {
+    sql += " AND project IS NULL";
+  } else {
+    sql += " AND project = ?";
+    params.push(project);
+  }
+
+  const stmt = database.prepare(sql);
+  const rows = stmt.all(...params) as MemoryRow[];
+
+  return rows
+    .map(rowToMemory)
+    .filter((memory) => normalizeMemoryName(memory.name) === normalizedTarget);
+}
+
 export function addMemory(args: AddMemoryArgs): { id: string } {
   const database = getDatabase();
   const id = uuidv4();
@@ -374,6 +411,91 @@ export function deleteMemory(id: string): { changes: number } {
   const result = stmt.run(id);
 
   return { changes: result.changes };
+}
+
+export function upsertMemory(args: UpsertMemoryArgs): UpsertMemoryResult {
+  const matchName = args.match_name ?? args.name;
+  const normalizedMatchName = normalizeMemoryName(matchName);
+
+  if (!normalizedMatchName) {
+    if (args.allow_create === false) {
+      return {
+        success: true,
+        action: "skipped",
+      };
+    }
+
+    const created = addMemory({
+      name: args.name,
+      content: args.content,
+      area: args.area,
+      project: args.project ?? undefined,
+      tags: args.tags,
+      metadata: args.metadata ?? undefined,
+    });
+
+    return {
+      success: true,
+      action: "created",
+      id: created.id,
+    };
+  }
+
+  const candidates = findMemoriesByNormalizedName(normalizedMatchName, args.project);
+
+  if (candidates.length > 1) {
+    return {
+      success: true,
+      action: "ambiguous",
+      candidates: candidates.map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name ?? null,
+        project: candidate.project,
+      })),
+    };
+  }
+
+  if (candidates.length === 1) {
+    const candidate = candidates[0];
+    const updateResult = updateMemory({
+      id: candidate.id,
+      name: args.name,
+      content: args.content,
+      area: args.area,
+      project: args.project,
+      tags: args.tags,
+      metadata: args.metadata,
+    });
+
+    return {
+      success: true,
+      action: "updated",
+      id: candidate.id,
+      changes: updateResult.changes,
+    };
+  }
+
+  if (args.allow_create === false) {
+    return {
+      success: true,
+      action: "skipped",
+    };
+  }
+
+  const created = addMemory({
+    name: args.name,
+    content: args.content,
+    area: args.area,
+    project: args.project ?? undefined,
+    tags: args.tags,
+    metadata: args.metadata ?? undefined,
+  });
+
+  return {
+    success: true,
+    action: "created",
+    id: created.id,
+  };
 }
 
 export function listMemories(args: ListMemoryArgs): Memory[] {

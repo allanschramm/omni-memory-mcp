@@ -47,6 +47,17 @@ export interface DeleteMemoryArgs {
   id: string;
 }
 
+export interface UpsertMemoryArgs {
+  name?: string;
+  match_name?: string;
+  content: string;
+  area?: MemoryArea;
+  project?: string | null;
+  tags?: string[];
+  metadata?: Record<string, unknown> | null;
+  allow_create?: boolean;
+}
+
 export interface ListMemoryArgs {
   area?: MemoryArea;
   project?: string;
@@ -101,6 +112,14 @@ export interface UpdateMemoryResult {
 export interface DeleteMemoryResult {
   success: boolean;
   changes: number;
+}
+
+export interface UpsertMemoryResult {
+  success: boolean;
+  action: "created" | "updated" | "ambiguous" | "skipped";
+  id?: string;
+  changes?: number;
+  candidates?: Array<{ id: string; name: string | null; project: string | null }>;
 }
 
 export interface ListMemoryResult {

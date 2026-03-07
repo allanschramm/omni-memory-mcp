@@ -10,6 +10,7 @@ export type ToolCallback<T extends ZodRawShape> = (args: {
 }) => Promise<CallToolResult>;
 
 export { schema as addSchema, handler as addHandler } from "./add.js";
+export { schema as upsertSchema, handler as upsertHandler } from "./upsert.js";
 export { schema as getSchema, handler as getHandler } from "./get.js";
 export { schema as updateSchema, handler as updateHandler } from "./update.js";
 export { schema as deleteSchema, handler as deleteHandler } from "./delete.js";
