@@ -15,6 +15,7 @@ import { schema as deleteSchema, handler as deleteHandler } from "./tools/delete
 import { schema as listSchema, handler as listHandler } from "./tools/list.js";
 import { schema as searchSchema, handler as searchHandler } from "./tools/search.js";
 import { schema as statsSchema, handler as statsHandler } from "./tools/stats.js";
+import { schema as pruneSchema, handler as pruneHandler } from "./tools/prune.js";
 
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
@@ -81,6 +82,13 @@ server.tool(
   "Get statistics about the Omni Memory database, including total memories, size on disk, and counts by area and project.",
   statsSchema,
   statsHandler
+);
+
+server.tool(
+  "memory_prune",
+  "Cleanup decayed memories dynamically based on threshold decay score.",
+  pruneSchema,
+  pruneHandler
 );
 
 // Graceful shutdown
