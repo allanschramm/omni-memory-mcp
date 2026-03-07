@@ -9,13 +9,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 import { schema as addSchema, handler as addHandler } from "./tools/add.js";
+import { schema as upsertSchema, handler as upsertHandler } from "./tools/upsert.js";
 import { schema as getSchema, handler as getHandler } from "./tools/get.js";
 import { schema as updateSchema, handler as updateHandler } from "./tools/update.js";
-import { schema as upsertSchema, handler as upsertHandler } from "./tools/upsert.js";
 import { schema as deleteSchema, handler as deleteHandler } from "./tools/delete.js";
 import { schema as listSchema, handler as listHandler } from "./tools/list.js";
 import { schema as searchSchema, handler as searchHandler } from "./tools/search.js";
 import { schema as statsSchema, handler as statsHandler } from "./tools/stats.js";
+import { schema as pruneSchema, handler as pruneHandler } from "./tools/prune.js";
 
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
@@ -43,6 +44,13 @@ server.tool(
 );
 
 server.tool(
+  "memory_upsert",
+  "Create a new memory or update an existing canonical memory when there is one clear match.",
+  upsertSchema,
+  upsertHandler
+);
+
+server.tool(
   "memory_get",
   "Retrieve a specific memory by its ID.",
   getSchema,
@@ -54,13 +62,6 @@ server.tool(
   "Update an existing memory's content, area, project, or tags.",
   updateSchema,
   updateHandler
-);
-
-server.tool(
-  "memory_upsert",
-  "Create a new memory or update an existing canonical memory when there is one clear match.",
-  upsertSchema,
-  upsertHandler
 );
 
 server.tool(
@@ -89,6 +90,13 @@ server.tool(
   "Get statistics about the Omni Memory database, including total memories, size on disk, and counts by area and project.",
   statsSchema,
   statsHandler
+);
+
+server.tool(
+  "memory_prune",
+  "Cleanup decayed memories dynamically based on threshold decay score.",
+  pruneSchema,
+  pruneHandler
 );
 
 // Graceful shutdown

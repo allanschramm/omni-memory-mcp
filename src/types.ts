@@ -3,34 +3,30 @@
  */
 
 export type MemoryArea = "general" | "snippets" | "solutions" | "preferences";
+export type SearchMode = "balanced" | "exact" | "broad";
 
 export interface Memory {
   id: string;
-  name: string | null;
+  name?: string | null;
   content: string;
   area: MemoryArea;
   project: string | null;
   tags: string[];
+  metadata?: Record<string, unknown> | null;
+  accessed_at?: string | null;
+  access_count?: number;
   created_at: string;
   updated_at: string;
+  decay_score?: number;
 }
 
 export interface AddMemoryArgs {
-  content: string;
   name?: string;
+  content: string;
   area?: MemoryArea;
   project?: string;
   tags?: string[];
-}
-
-export interface UpsertMemoryArgs {
-  content: string;
-  name?: string;
-  match_name?: string;
-  area?: MemoryArea;
-  project?: string;
-  tags?: string[];
-  allow_create?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface GetMemoryArgs {
@@ -39,15 +35,27 @@ export interface GetMemoryArgs {
 
 export interface UpdateMemoryArgs {
   id: string;
-  name?: string | null;
+  name?: string;
   content?: string;
   area?: MemoryArea;
-  project?: string;
+  project?: string | null;
   tags?: string[];
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface DeleteMemoryArgs {
   id: string;
+}
+
+export interface UpsertMemoryArgs {
+  name?: string;
+  match_name?: string;
+  content: string;
+  area?: MemoryArea;
+  project?: string | null;
+  tags?: string[];
+  metadata?: Record<string, unknown> | null;
+  allow_create?: boolean;
 }
 
 export interface ListMemoryArgs {
@@ -63,10 +71,14 @@ export interface SearchMemoryArgs {
   project?: string;
   limit?: number;
   enableAdvancedSyntax?: boolean;
+  search_mode?: SearchMode;
 }
 
-export interface SearchResult extends Memory {
+export interface SearchResult extends Omit<Memory, "content"> {
+  content?: string; // Optional to support Progressive Disclosure
   score: number;
+  decay_score: number;
+  explanation: string;
 }
 
 export interface MemoryStats {
@@ -75,6 +87,17 @@ export interface MemoryStats {
   by_project: Record<string, number>;
   total_size_bytes: number;
   event_counts: Record<string, number>;
+}
+
+export interface PruneMemoryArgs {
+  threshold_score?: number;
+  dry_run?: boolean;
+}
+
+export interface PruneMemoryResult {
+  success: boolean;
+  pruned_count: number;
+  details?: { id: string, name: string | null }[];
 }
 
 export interface AddMemoryResult {
@@ -92,6 +115,14 @@ export interface DeleteMemoryResult {
   changes: number;
 }
 
+export interface UpsertMemoryResult {
+  success: boolean;
+  action: "created" | "updated" | "ambiguous" | "skipped";
+  id?: string;
+  changes?: number;
+  candidates?: Array<{ id: string; name: string | null; project: string | null }>;
+}
+
 export interface ListMemoryResult {
   success: boolean;
   memories: Memory[];
@@ -107,10 +138,4 @@ export interface SearchMemoryResult {
 export interface ErrorResponse {
   success: false;
   error: string;
-}
-
-export interface UpsertMemoryResult {
-  action: "created" | "updated" | "not_found";
-  id: string | null;
-  matched_name: string | null;
 }

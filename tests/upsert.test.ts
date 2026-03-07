@@ -1,9 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-
-type DatabaseModule = Awaited<typeof import("../src/database.js")>;
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("upsertMemory (API)", () => {
-  let dbModule: DatabaseModule;
+  let dbModule: typeof import("../src/database.js");
 
   beforeEach(async () => {
     vi.resetModules();
@@ -17,76 +15,124 @@ describe("upsertMemory (API)", () => {
     delete process.env.OMNI_MEMORY_DB;
   });
 
-  it("creates a canonical memory when no match exists", () => {
+  it("creates a new memory when no candidate exists", () => {
     const result = dbModule.upsertMemory({
-      content: "Use strict TypeScript in this repo",
-      name: "ts-style",
-      area: "preferences",
-      project: "omni-memory-mcp",
-      tags: ["typescript"],
+      name: "Coding preferences",
+      content: "Use strict TypeScript",
+      project: "proj-a",
+    });
+
+    const created = dbModule.getMemory(result.id!);
+
+    expect(result.action).toBe("created");
+    expect(created?.name).toBe("Coding preferences");
+  });
+
+  it("updates an existing memory when one normalized name match exists", () => {
+    const existing = dbModule.addMemory({
+      name: "Coding Preferences",
+      content: "Old content",
+      project: "proj-a",
+    });
+
+    const result = dbModule.upsertMemory({
+      name: " coding   preferences ",
+      content: "Updated content",
+      project: "proj-a",
+      metadata: null,
+    });
+
+    const updated = dbModule.getMemory(existing.id);
+
+    expect(result.action).toBe("updated");
+    expect(result.id).toBe(existing.id);
+    expect(updated?.content).toBe("Updated content");
+  });
+
+  it("does not update memories from a different project", () => {
+    dbModule.addMemory({
+      name: "Coding preferences",
+      content: "Project A",
+      project: "proj-a",
+    });
+
+    const result = dbModule.upsertMemory({
+      name: "Coding preferences",
+      content: "Project B",
+      project: "proj-b",
     });
 
     expect(result.action).toBe("created");
-    expect(result.id).toBeTruthy();
-    expect(result.matched_name).toBe("ts-style");
-
-    const memory = dbModule.getMemory(result.id!);
-    expect(memory?.name).toBe("ts-style");
-    expect(memory?.content).toContain("strict TypeScript");
   });
 
-  it("updates an existing canonical memory using match_name", () => {
-    const initial = dbModule.upsertMemory({
-      content: "Initial canonical note",
-      name: "repo-guidance",
-      project: "omni-memory-mcp",
+  it("returns ambiguity and writes nothing when multiple candidates match", () => {
+    dbModule.addMemory({
+      name: "Coding preferences",
+      content: "one",
+      project: undefined,
+    });
+    dbModule.addMemory({
+      name: " coding   preferences ",
+      content: "two",
+      project: undefined,
     });
 
-    const updated = dbModule.upsertMemory({
-      content: "Updated canonical note",
-      match_name: "repo-guidance",
-      area: "solutions",
-      project: "omni-memory-mcp",
-      tags: ["canonical"],
-    });
-
-    expect(updated.action).toBe("updated");
-    expect(updated.id).toBe(initial.id);
-
-    const memory = dbModule.getMemory(initial.id!);
-    expect(memory?.content).toBe("Updated canonical note");
-    expect(memory?.area).toBe("solutions");
-    expect(memory?.tags).toEqual(["canonical"]);
-    expect(memory?.name).toBe("repo-guidance");
-  });
-
-  it("scopes canonical matches by project", () => {
-    const first = dbModule.upsertMemory({
-      content: "Project A note",
-      name: "shared-key",
-      project: "project-a",
-    });
-
-    const second = dbModule.upsertMemory({
-      content: "Project B note",
-      name: "shared-key",
-      project: "project-b",
-    });
-
-    expect(first.id).not.toBe(second.id);
-    expect(dbModule.listMemories({ limit: 10 })).toHaveLength(2);
-  });
-
-  it("returns not_found when allow_create is false and nothing matches", () => {
+    const before = dbModule.listMemories({ limit: 10 }).length;
     const result = dbModule.upsertMemory({
-      content: "Should not be created",
-      match_name: "missing-key",
-      allow_create: false,
-      project: "omni-memory-mcp",
+      name: "Coding preferences",
+      content: "new",
+    });
+    const after = dbModule.listMemories({ limit: 10 }).length;
+
+    expect(result.action).toBe("ambiguous");
+    expect(result.candidates).toHaveLength(2);
+    expect(after).toBe(before);
+  });
+
+  it("falls back to create when name and match_name are missing", () => {
+    const result = dbModule.upsertMemory({
+      content: "Unnamed note",
+      project: "proj-a",
     });
 
-    expect(result.action).toBe("not_found");
-    expect(result.id).toBeNull();
+    const created = dbModule.getMemory(result.id!);
+
+    expect(result.action).toBe("created");
+    expect(created?.name).toBeNull();
+  });
+
+  it("supports allow_create=false when no candidate exists", () => {
+    const result = dbModule.upsertMemory({
+      name: "Missing canonical note",
+      content: "Should not create",
+      project: "proj-a",
+      allow_create: false,
+    });
+
+    expect(result.action).toBe("skipped");
     expect(dbModule.listMemories({ limit: 10 })).toHaveLength(0);
+  });
+
+  it("preserves metadata null clearing when updating through upsert", () => {
+    const existing = dbModule.addMemory({
+      name: "Canonical preference",
+      content: "Old content",
+      project: "proj-a",
+      metadata: { source: "seed" },
+    });
+
+    const result = dbModule.upsertMemory({
+      name: "Canonical preference",
+      content: "New content",
+      project: "proj-a",
+      metadata: null,
+    });
+
+    const updated = dbModule.getMemory(existing.id);
+
+    expect(result.action).toBe("updated");
+    expect(result.id).toBe(existing.id);
+    expect(updated?.project).toBe("proj-a");
+    expect(updated?.metadata).toBeNull();
   });
 });
