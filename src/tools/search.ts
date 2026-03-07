@@ -12,11 +12,12 @@ export const schema = {
   project: z.string().optional().describe("Filter by project"),
   limit: z.number().min(1).max(50).optional().describe("Max results (default: 10, max: 50)"),
   enableAdvancedSyntax: z.boolean().optional().describe("Enable FTS5 boolean and wildcard advanced syntax"),
+  search_mode: z.enum(["balanced", "exact", "broad"]).optional().describe("Ranking mode (default: balanced)"),
 };
 
-export const handler: ToolCallback<typeof schema> = async ({ query, area, project, limit, enableAdvancedSyntax }) => {
+export const handler: ToolCallback<typeof schema> = async ({ query, area, project, limit, enableAdvancedSyntax, search_mode }) => {
   try {
-    const results = searchMemories({ query, area, project, limit, enableAdvancedSyntax });
+    const results = searchMemories({ query, area, project, limit, enableAdvancedSyntax, search_mode });
 
     if (results.length === 0) {
       return {
@@ -33,8 +34,9 @@ export const handler: ToolCallback<typeof schema> = async ({ query, area, projec
       .map((m, i) => {
         const score = `(${(m.score * 100).toFixed(0)}%)`;
         const projectTag = m.project ? ` [${m.project}]` : "";
-        const preview = m.content.length > 200 ? m.content.substring(0, 200) + "..." : m.content;
-        return `${i + 1}. ${score} [${m.area}]${projectTag}\n   ID: ${m.id}\n   ${preview}`;
+        const title = m.name ? m.name : "Unnamed Memory";
+        const tags = m.tags && m.tags.length ? ` {Tags: ${m.tags.join(",")}}` : "";
+        return `${i + 1}. ${score} [${m.area}]${projectTag}\n   ID: ${m.id}\n   Name: ${title}${tags}\n   Match: ${m.explanation}\n   Accessed: ${m.accessed_at || "Never"} (${m.access_count} times)`;
       })
       .join("\n\n");
 
@@ -42,7 +44,7 @@ export const handler: ToolCallback<typeof schema> = async ({ query, area, projec
       content: [
         {
           type: "text" as const,
-          text: `Found ${results.length} memories for "${query}":\n\n${resultsText}`,
+          text: `Found ${results.length} memories for "${query}".\nNote: To read the full content of a memory, use 'memory_get' with the ID.\n\n${resultsText}`,
         },
       ],
     };

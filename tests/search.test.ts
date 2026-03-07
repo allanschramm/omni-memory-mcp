@@ -1,43 +1,60 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("searchMemories (API)", () => {
-    let dbModule: any;
+  let dbModule: typeof import("../src/database.js");
 
-    beforeEach(async () => {
-        vi.resetModules();
-        process.env.OMNI_MEMORY_DB = ":memory:";
-        dbModule = await import("../src/database.js");
-        dbModule.resetDatabase();
+  beforeEach(async () => {
+    vi.resetModules();
+    process.env.OMNI_MEMORY_DB = ":memory:";
+    dbModule = await import("../src/database.js");
+    dbModule.resetDatabase();
+  });
+
+  afterEach(() => {
+    dbModule.closeDatabase();
+    delete process.env.OMNI_MEMORY_DB;
+  });
+
+  it("supports FTS5 boolean syntax when enableAdvancedSyntax is true", () => {
+    dbModule.addMemory({ name: "Rigorous", content: "typescript is rigorous", area: "general" });
+    dbModule.addMemory({ name: "Dynamic", content: "python is dynamic", area: "general" });
+    dbModule.addMemory({ name: "Cool", content: "typescript and python are cool", area: "general" });
+
+    const resultsAnd = dbModule.searchMemories({ query: "typescript AND rigorous", enableAdvancedSyntax: true });
+    expect(resultsAnd).toHaveLength(1);
+    expect(resultsAnd[0].name).toBe("Rigorous");
+
+    const resultsQuotes = dbModule.searchMemories({
+      query: "\"typescript\" NOT \"dynamic\"",
+      enableAdvancedSyntax: true,
     });
+    expect(resultsQuotes).toHaveLength(2);
 
-    afterEach(() => {
-        if (dbModule) dbModule.closeDatabase();
-        delete process.env.OMNI_MEMORY_DB;
-    });
+    expect(() => {
+      dbModule.searchMemories({ query: "\"unclosed", enableAdvancedSyntax: true });
+    }).toThrow("Invalid FTS5 advanced syntax");
+  });
 
-    it("should support FTS5 boolean syntax when enableAdvancedSyntax is true", () => {
-        dbModule.addMemory({ content: "typescript is rigorous", area: "general" });
-        dbModule.addMemory({ content: "python is dynamic", area: "general" });
-        dbModule.addMemory({ content: "typescript and python are cool", area: "general" });
+  it("ranks exact title matches above body-only matches", () => {
+    dbModule.addMemory({ name: "typescript configuration", content: "misc note", area: "general" });
+    dbModule.addMemory({ name: "General note", content: "deep typescript configuration guide", area: "general" });
 
-        const resultsAnd = dbModule.searchMemories({ query: "typescript AND rigorous", enableAdvancedSyntax: true });
+    const results = dbModule.searchMemories({ query: "typescript configuration" });
 
-        // Debugging what FTS5 actually returned
-        if (resultsAnd.length !== 1) {
-            console.log("FTS5 returned unexpected matches for 'typescript AND rigorous':", resultsAnd.map((r: any) => r.content));
-        }
+    expect(results[0].name).toBe("typescript configuration");
+    expect(results[0].explanation).toContain("name");
+  });
 
-        expect(resultsAnd.length).toBe(1);
-        expect(resultsAnd[0].content).toContain("typescript is rigorous");
+  it("lightly boosts frequently accessed memories in close matches", () => {
+    const first = dbModule.addMemory({ name: "alpha", content: "search ranking baseline", area: "general" });
+    const second = dbModule.addMemory({ name: "beta", content: "search ranking baseline", area: "general" });
 
-        const resultsQuotes = dbModule.searchMemories({ query: '"typescript" NOT "dynamic"', enableAdvancedSyntax: true });
+    dbModule.getMemory(second.id);
+    dbModule.getMemory(second.id);
 
-        // "typescript is rigorous" matches, "typescript and python are cool" matches.
-        // "python is dynamic" should NOT match. So we expect 2 results.
-        expect(resultsQuotes.length).toBe(2);
+    const results = dbModule.searchMemories({ query: "search ranking baseline" });
 
-        expect(() => {
-            dbModule.searchMemories({ query: '"unclosed', enableAdvancedSyntax: true });
-        }).toThrow();
-    });
+    expect(results[0].id).toBe(second.id);
+    expect(results[0].score).toBeGreaterThan(results[1].score);
+  });
 });

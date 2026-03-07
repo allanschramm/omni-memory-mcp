@@ -22,7 +22,7 @@ export const handler: ToolCallback<typeof schema> = async ({ area, project, tag,
       if (area) filters.push(`area=${area}`);
       if (project) filters.push(`project=${project}`);
       if (tag) filters.push(`tag=${tag}`);
-      
+
       const filterText = filters.length > 0 ? ` with filters: ${filters.join(", ")}` : "";
       return {
         content: [
@@ -38,8 +38,8 @@ export const handler: ToolCallback<typeof schema> = async ({ area, project, tag,
       .map((m, i) => {
         const projectTag = m.project ? ` [${m.project}]` : "";
         const tags = m.tags.length > 0 ? ` #${m.tags.join(" #")}` : "";
-        const preview = m.content.length > 150 ? m.content.substring(0, 150) + "..." : m.content;
-        return `${i + 1}. [${m.area}]${projectTag}${tags}\n   ID: ${m.id}\n   ${preview}`;
+        const title = m.name ? m.name : "Unnamed Memory";
+        return `${i + 1}. [${m.area}]${projectTag}${tags}\n   ID: ${m.id}\n   Name: ${title}\n   Accessed: ${m.accessed_at || 'Never'} (${m.access_count} times)`;
       })
       .join("\n\n");
 
@@ -47,7 +47,7 @@ export const handler: ToolCallback<typeof schema> = async ({ area, project, tag,
       content: [
         {
           type: "text" as const,
-          text: `${memories.length} memories:\n\n${memoriesText}`,
+          text: `Found ${memories.length} memories. Use 'memory_get' to read full content.\n\n${memoriesText}`,
         },
       ],
     };

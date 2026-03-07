@@ -30,6 +30,20 @@ For every meaningful project change:
    - next steps.
 3. If Omni Memory write fails in this project, continue the work and report the failure explicitly.
 
+## Local MCP Deployment Policy
+
+After any code or behavior change in `omni-memory-mcp`:
+
+1. Build the updated runtime artifacts.
+2. Sync the freshly built `dist/` output into `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`.
+3. Run a smoke test against the deployed local runtime via `omni-memory-mcp` before declaring completion.
+
+Default expectation:
+
+- Source build happens in the repository.
+- The deployed local MCP copy at `C:\Users\allan\.local\mcp\omni-memory-mcp\dist` must match the latest repository build.
+- Verification is not complete until the deployed runtime is exercised, not just `npm test` inside the repo.
+
 ## Publish Ownership Policy
 
 - Package publish ownership is user-side by default.
@@ -68,6 +82,18 @@ npm test               # Run all tests
 npx vitest run tests/database.test.ts  # Single test file
 npx vitest run -t "pattern"            # Tests matching pattern
 ```
+
+Local deployment target:
+
+```powershell
+C:\Users\allan\.local\mcp\omni-memory-mcp\dist
+```
+
+Post-change expectation:
+
+- Rebuild repo `dist/`
+- Copy/sync repo `dist/` to `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`
+- Run a smoke test through the deployed `omni-memory-mcp`
 
 ## Code Style
 
@@ -182,4 +208,6 @@ describe("MemoryDatabase", () => {
    - `npm run check`
    - `npm run build`
    - `npm test` (or document exact environment limitation)
+   - sync `dist/` to `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`
+   - smoke test the deployed `omni-memory-mcp`
 6. Keep version metadata consistent across package/docs/runtime-facing surfaces.
