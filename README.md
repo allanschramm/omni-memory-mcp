@@ -7,7 +7,7 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.4`
+- Current `latest`: `1.0.6`
 
 ## Project Memory
 
