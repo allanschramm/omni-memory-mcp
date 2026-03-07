@@ -15,3 +15,5 @@ export { schema as updateSchema, handler as updateHandler } from "./update.js";
 export { schema as deleteSchema, handler as deleteHandler } from "./delete.js";
 export { schema as listSchema, handler as listHandler } from "./list.js";
 export { schema as searchSchema, handler as searchHandler } from "./search.js";
+export { schema as statsSchema, handler as statsHandler } from "./stats.js";
+export { schema as upsertSchema, handler as upsertHandler } from "./upsert.js";

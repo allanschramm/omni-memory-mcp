@@ -6,17 +6,19 @@
 import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import { join, dirname, isAbsolute, resolve, normalize } from "path";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, statSync } from "fs";
 import { homedir } from "os";
 import type {
   Memory,
   MemoryArea,
   AddMemoryArgs,
   UpdateMemoryArgs,
+  UpsertMemoryArgs,
   ListMemoryArgs,
   SearchMemoryArgs,
   SearchResult,
   MemoryStats,
+  UpsertMemoryResult,
 } from "./types.js";
 
 function expandHomePath(inputPath: string): string {
@@ -82,6 +84,7 @@ function initializeSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
+      name TEXT,
       content TEXT NOT NULL,
       area TEXT DEFAULT 'general',
       project TEXT,
@@ -90,6 +93,9 @@ function initializeSchema(database: Database.Database): void {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  ensureMemoriesColumn(database, "name", "TEXT");
+  database.exec("CREATE INDEX IF NOT EXISTS idx_memories_project_name ON memories(project, name)");
 
   // Create FTS5 virtual table
   database.exec(`
@@ -125,11 +131,51 @@ function initializeSchema(database: Database.Database): void {
       VALUES (new.rowid, new.content, COALESCE(new.project, ''), new.tags);
     END
   `);
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS share_events (
+      id TEXT PRIMARY KEY,
+      event_name TEXT NOT NULL,
+      memory_id TEXT,
+      matched_name TEXT,
+      project TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+}
+
+function ensureMemoriesColumn(database: Database.Database, columnName: string, columnDefinition: string): void {
+  const columns = database.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+  const hasColumn = columns.some((column) => column.name === columnName);
+
+  if (!hasColumn) {
+    database.exec(`ALTER TABLE memories ADD COLUMN ${columnName} ${columnDefinition}`);
+  }
+}
+
+function logShareEvent(
+  database: Database.Database,
+  eventName: string,
+  details: { memoryId?: string; matchedName?: string; project?: string | null } = {}
+): void {
+  const stmt = database.prepare(`
+    INSERT INTO share_events (id, event_name, memory_id, matched_name, project)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  stmt.run(
+    uuidv4(),
+    eventName,
+    details.memoryId || null,
+    details.matchedName || null,
+    details.project || null
+  );
 }
 
 function rowToMemory(row: Record<string, unknown>): Memory {
   return {
     id: row.id as string,
+    name: (row.name as string | null) ?? null,
     content: row.content as string,
     area: (row.area as MemoryArea) || "general",
     project: row.project as string | null,
@@ -144,14 +190,15 @@ export function addMemory(args: AddMemoryArgs): { id: string } {
   const id = uuidv4();
   const area = args.area || "general";
   const project = args.project || null;
+  const name = args.name || null;
   const tags = JSON.stringify(args.tags || []);
 
   const stmt = database.prepare(`
-    INSERT INTO memories (id, content, area, project, tags)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO memories (id, name, content, area, project, tags)
+    VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  stmt.run(id, args.content, area, project, tags);
+  stmt.run(id, name, args.content, area, project, tags);
 
   return { id };
 }
@@ -177,17 +224,117 @@ export function updateMemory(args: UpdateMemoryArgs): { changes: number } {
   const content = args.content ?? existing.content;
   const area = args.area ?? existing.area;
   const project = args.project !== undefined ? args.project : existing.project;
+  const name = args.name !== undefined ? args.name : existing.name;
   const tags = args.tags !== undefined ? JSON.stringify(args.tags) : JSON.stringify(existing.tags);
 
   const stmt = database.prepare(`
     UPDATE memories 
-    SET content = ?, area = ?, project = ?, tags = ?, updated_at = datetime('now')
+    SET name = ?, content = ?, area = ?, project = ?, tags = ?, updated_at = datetime('now')
     WHERE id = ?
   `);
 
-  const result = stmt.run(content, area, project, tags, args.id);
+  const result = stmt.run(name, content, area, project, tags, args.id);
 
   return { changes: result.changes };
+}
+
+function findCanonicalMemory(matchName: string, project?: string): Memory | null {
+  const database = getDatabase();
+  const projectValue = project ?? null;
+  const stmt = database.prepare(`
+    SELECT *
+    FROM memories
+    WHERE name = ?
+      AND (
+        (? IS NULL AND project IS NULL)
+        OR project = ?
+      )
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `);
+  const row = stmt.get(matchName, projectValue, projectValue) as Record<string, unknown> | undefined;
+
+  return row ? rowToMemory(row) : null;
+}
+
+export function upsertMemory(args: UpsertMemoryArgs): UpsertMemoryResult {
+  const canonicalName = args.match_name ?? args.name ?? null;
+  const allowCreate = args.allow_create ?? true;
+
+  if (!canonicalName) {
+    const created = addMemory({
+      content: args.content,
+      name: args.name,
+      area: args.area,
+      project: args.project,
+      tags: args.tags,
+    });
+
+    logShareEvent(getDatabase(), "memory_upsert_created", {
+      memoryId: created.id,
+      matchedName: args.name ?? undefined,
+      project: args.project ?? null,
+    });
+
+    return {
+      action: "created",
+      id: created.id,
+      matched_name: args.name ?? null,
+    };
+  }
+
+  const existing = findCanonicalMemory(canonicalName, args.project);
+
+  if (existing) {
+    updateMemory({
+      id: existing.id,
+      content: args.content,
+      area: args.area,
+      project: args.project,
+      tags: args.tags,
+      name: args.name ?? existing.name ?? canonicalName,
+    });
+
+    logShareEvent(getDatabase(), "memory_upsert_updated", {
+      memoryId: existing.id,
+      matchedName: canonicalName,
+      project: args.project ?? null,
+    });
+
+    return {
+      action: "updated",
+      id: existing.id,
+      matched_name: canonicalName,
+    };
+  }
+
+  if (!allowCreate) {
+    return {
+      action: "not_found",
+      id: null,
+      matched_name: canonicalName,
+    };
+  }
+
+  const created = addMemory({
+    content: args.content,
+    name: args.name ?? canonicalName,
+    area: args.area,
+    project: args.project,
+    tags: args.tags,
+  });
+
+  logShareEvent(getDatabase(), "memory_upsert_created", {
+    memoryId: created.id,
+    matchedName: canonicalName,
+    project: args.project ?? null,
+  });
+
+  return {
+    action: "created",
+    id: created.id,
+    matched_name: canonicalName,
+  };
 }
 
 export function deleteMemory(id: string): { changes: number } {
@@ -231,26 +378,40 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
 
 export function getStats(): MemoryStats {
   const database = getDatabase();
+  const totalRow = database.prepare("SELECT count(*) as c FROM memories").get() as { c: number } | undefined;
+  const total = totalRow?.c || 0;
 
-  const total = (database.prepare("SELECT count(*) as c FROM memories").get() as any)?.c || 0;
-
-  const byAreaRows = database.prepare("SELECT area, count(*) as c FROM memories GROUP BY area").all() as any[];
+  const byAreaRows = database.prepare("SELECT area, count(*) as c FROM memories GROUP BY area").all() as Array<{
+    area: string | null;
+    c: number;
+  }>;
   const by_area = byAreaRows.reduce((acc, row) => {
     acc[row.area || "general"] = row.c;
     return acc;
   }, {} as Record<string, number>);
 
-  const byProjectRows = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project").all() as any[];
+  const byProjectRows = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project").all() as Array<{
+    project: string | null;
+    c: number;
+  }>;
   const by_project = byProjectRows.reduce((acc, row) => {
     acc[row.project || "unassigned"] = row.c;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const eventRows = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name").all() as Array<{
+    event_name: string;
+    c: number;
+  }>;
+  const event_counts = eventRows.reduce((acc, row) => {
+    acc[row.event_name] = row.c;
     return acc;
   }, {} as Record<string, number>);
 
   let total_size_bytes = 0;
   if (DB_PATH !== ":memory:" && existsSync(DB_PATH)) {
     try {
-      const stats = require("fs").statSync(DB_PATH);
-      total_size_bytes = stats.size;
+      total_size_bytes = statSync(DB_PATH).size;
     } catch {
       // Ignore if stat fails
     }
@@ -261,6 +422,7 @@ export function getStats(): MemoryStats {
     by_area,
     by_project,
     total_size_bytes,
+    event_counts,
   };
 }
 
@@ -380,6 +542,7 @@ export { resolveStoragePaths, normalizeUserPath };
 // For testing
 export function resetDatabase(): void {
   if (db) {
+    db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
     db.exec("DROP TRIGGER IF EXISTS memories_ai");

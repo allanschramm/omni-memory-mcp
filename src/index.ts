@@ -11,6 +11,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { schema as addSchema, handler as addHandler } from "./tools/add.js";
 import { schema as getSchema, handler as getHandler } from "./tools/get.js";
 import { schema as updateSchema, handler as updateHandler } from "./tools/update.js";
+import { schema as upsertSchema, handler as upsertHandler } from "./tools/upsert.js";
 import { schema as deleteSchema, handler as deleteHandler } from "./tools/delete.js";
 import { schema as listSchema, handler as listHandler } from "./tools/list.js";
 import { schema as searchSchema, handler as searchHandler } from "./tools/search.js";
@@ -53,6 +54,13 @@ server.tool(
   "Update an existing memory's content, area, project, or tags.",
   updateSchema,
   updateHandler
+);
+
+server.tool(
+  "memory_upsert",
+  "Create a new memory or update an existing canonical memory when there is one clear match.",
+  upsertSchema,
+  upsertHandler
 );
 
 server.tool(

@@ -6,6 +6,7 @@ export type MemoryArea = "general" | "snippets" | "solutions" | "preferences";
 
 export interface Memory {
   id: string;
+  name: string | null;
   content: string;
   area: MemoryArea;
   project: string | null;
@@ -16,9 +17,20 @@ export interface Memory {
 
 export interface AddMemoryArgs {
   content: string;
+  name?: string;
   area?: MemoryArea;
   project?: string;
   tags?: string[];
+}
+
+export interface UpsertMemoryArgs {
+  content: string;
+  name?: string;
+  match_name?: string;
+  area?: MemoryArea;
+  project?: string;
+  tags?: string[];
+  allow_create?: boolean;
 }
 
 export interface GetMemoryArgs {
@@ -27,6 +39,7 @@ export interface GetMemoryArgs {
 
 export interface UpdateMemoryArgs {
   id: string;
+  name?: string | null;
   content?: string;
   area?: MemoryArea;
   project?: string;
@@ -61,6 +74,7 @@ export interface MemoryStats {
   by_area: Record<string, number>;
   by_project: Record<string, number>;
   total_size_bytes: number;
+  event_counts: Record<string, number>;
 }
 
 export interface AddMemoryResult {
@@ -93,4 +107,10 @@ export interface SearchMemoryResult {
 export interface ErrorResponse {
   success: false;
   error: string;
+}
+
+export interface UpsertMemoryResult {
+  action: "created" | "updated" | "not_found";
+  id: string | null;
+  matched_name: string | null;
 }

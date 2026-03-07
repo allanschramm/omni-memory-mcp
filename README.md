@@ -26,6 +26,7 @@ Operational context is stored through Omni Memory itself.
 - Full-text search with FTS5
 - MCP-native tools
 - CRUD operations (`memory_add`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
+- Canonical memory writes with `memory_upsert`
 - Diagnostic tools (`memory_stats`)
 - Organization by `area`, `project`, and `tags`
 - Shared long-term memory across multiple projects and multiple coding agents/clients
@@ -185,12 +186,38 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 
 ### `memory_add`
 
+Use `memory_add` for append-only notes that should always create a new record.
+
 ```json
 {
   "content": "User prefers TypeScript with strict mode",
   "area": "preferences",
   "project": "my-project",
   "tags": ["typescript", "coding-style"]
+}
+```
+
+### `memory_upsert`
+
+Use `memory_upsert` when agents should converge on one canonical memory instead of creating duplicates.
+
+```json
+{
+  "content": "Repository standard: prefer exact Zod schemas for MCP tools",
+  "name": "repo-tooling-standard",
+  "project": "omni-memory-mcp",
+  "area": "preferences",
+  "tags": ["mcp", "zod"]
+}
+```
+
+Follow-up updates can reuse the same canonical slot:
+
+```json
+{
+  "content": "Repository standard: prefer exact Zod schemas and concise tool text responses",
+  "match_name": "repo-tooling-standard",
+  "project": "omni-memory-mcp"
 }
 ```
 
@@ -249,7 +276,7 @@ Then copy the generated file for your client/platform from `config/mcp/generated
 ```json
 {}
 ```
-*Returns total memories, size on disk, and breakdown by project and area.*
+*Returns total memories, size on disk, breakdown by project and area, plus local upsert metrics such as `memory_upsert_created` and `memory_upsert_updated`.*
 
 ## Memory Areas
 

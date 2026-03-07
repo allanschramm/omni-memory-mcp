@@ -28,6 +28,10 @@ export const handler: ToolCallback<typeof schema> = async () => {
             .map(([project, count]) => `  - ${project}: ${count}`)
             .join("\n");
 
+        const eventList = Object.entries(stats.event_counts)
+            .map(([eventName, count]) => `  - ${eventName}: ${count}`)
+            .join("\n");
+
         const text = `Omni Memory Database Statistics:
 Total Memories: ${stats.total_memories}
 Total Size on Disk: ${stats.total_size_bytes > 0 ? formatBytes(stats.total_size_bytes) : "Unknown (Memory DB)"}
@@ -36,7 +40,10 @@ By Area:
 ${areasList || "  (None)"}
 
 By Project:
-${projectsList || "  (None)"}`;
+${projectsList || "  (None)"}
+
+Upsert Metrics:
+${eventList || "  (None)"}`;
 
         return {
             content: [
