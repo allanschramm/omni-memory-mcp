@@ -79,9 +79,53 @@ npm run dev            # Watch mode
 npm run check          # Type check only
 npm run start          # Run server
 npm test               # Run all tests
+npm run test:watch     # Run Vitest in watch mode
+npm run mcp:generate   # Generate client MCP configs from canonical config
+npm run mcp:validate   # Validate generated MCP configs
+npm run prepack        # Build before packing/publishing
+npm run prepublishOnly # Check, build, and test before publish
 npx vitest run tests/database.test.ts  # Single test file
 npx vitest run -t "pattern"            # Tests matching pattern
 ```
+
+## Required Workflows
+
+### Canonical MCP Config Workflow
+
+Treat `config/mcp/servers.json` as the only canonical MCP config source.
+
+When MCP compatibility or client config behavior changes:
+
+1. Update `config/mcp/servers.json`
+2. Run `npm run mcp:generate`
+3. Run `npm run mcp:validate`
+4. Verify generated adapters in `config/mcp/generated/` stay aligned with the canonical config
+
+### Change Execution Workflow
+
+For any meaningful code, config, or compatibility change, use this sequence:
+
+1. Update scoped code/config
+2. Sync docs (`README.md`, `docs/*`) for any behavior or compatibility change
+3. Run `npm run mcp:generate`
+4. Run `npm run mcp:validate`
+5. Run `npm run check`
+6. Run `npm test` (or report the exact environment limitation)
+7. Run `npm run build`
+8. Sync repo `dist/` to `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`
+9. Smoke test the deployed local runtime via `omni-memory-mcp`
+10. Record the change in Omni Memory with `project=omni-memory-mcp`
+
+Do not declare completion after repo-local tests alone when runtime behavior changed. The deployed local MCP copy must also be exercised.
+
+### Release Prep Workflow
+
+For release preparation or publish handoff:
+
+1. Ensure version metadata, docs, and generated configs are in sync
+2. Run `npm run prepublishOnly`
+3. If a tarball is needed, run `npm pack`
+4. Do not run `npm publish` unless the user explicitly requests it and confirms credentials are ready
 
 Local deployment target:
 
@@ -206,8 +250,8 @@ describe("MemoryDatabase", () => {
    - `npm run mcp:generate`
    - `npm run mcp:validate`
    - `npm run check`
-   - `npm run build`
    - `npm test` (or document exact environment limitation)
+   - `npm run build`
    - sync `dist/` to `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`
    - smoke test the deployed `omni-memory-mcp`
 6. Keep version metadata consistent across package/docs/runtime-facing surfaces.
