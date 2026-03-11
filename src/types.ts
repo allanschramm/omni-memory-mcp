@@ -74,6 +74,37 @@ export interface SearchMemoryArgs {
   search_mode?: SearchMode;
 }
 
+export interface MemoryContextPackArgs {
+  query: string;
+  area?: MemoryArea;
+  project?: string;
+  tag?: string;
+  max_tokens?: number;
+  max_memories?: number;
+  search_mode?: SearchMode;
+}
+
+export interface MemoryContextPackMemory {
+  id: string;
+  name: string | null;
+  area: MemoryArea;
+  project: string | null;
+  tags: string[];
+  score: number;
+  explanation: string;
+  excerpt: string;
+}
+
+export interface MemoryContextPackResult {
+  success: boolean;
+  query: string;
+  count: number;
+  max_tokens: number;
+  estimated_tokens: number;
+  truncated: boolean;
+  memories: MemoryContextPackMemory[];
+}
+
 export interface SearchResult extends Omit<Memory, "content"> {
   content?: string; // Optional to support Progressive Disclosure
   score: number;

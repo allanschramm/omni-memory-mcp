@@ -22,10 +22,19 @@ import type {
   MemoryStats,
   PruneMemoryArgs,
   PruneMemoryResult,
+  MemoryContextPackArgs,
+  MemoryContextPackMemory,
+  MemoryContextPackResult,
 } from "./types.js";
 
 type MemoryRow = Record<string, unknown>;
 type MatchField = "name" | "content" | "project" | "tags";
+const DEFAULT_CONTEXT_PACK_MAX_TOKENS = 1200;
+const DEFAULT_CONTEXT_PACK_MAX_MEMORIES = 5;
+const MAX_CONTEXT_PACK_CANDIDATES = 50;
+const CONTEXT_PACK_HEADER_BUDGET = 40;
+const CONTEXT_PACK_SECTION_BUDGET = 18;
+const MIN_EXCERPT_TOKENS = 12;
 
 function expandHomePath(inputPath: string): string {
   if (inputPath === "~") {
@@ -286,6 +295,79 @@ function normalizeMemoryName(value: string | null | undefined): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function estimateTokenCount(value: string): number {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return 0;
+  }
+
+  return Math.max(1, Math.ceil(normalized.length / 4));
+}
+
+function truncateExcerpt(content: string, maxTokens: number): { excerpt: string; truncated: boolean } {
+  const normalized = normalizeWhitespace(content);
+
+  if (!normalized) {
+    return { excerpt: "", truncated: false };
+  }
+
+  if (maxTokens <= 0) {
+    return { excerpt: "", truncated: true };
+  }
+
+  const maxChars = Math.max(1, maxTokens * 4);
+  if (normalized.length <= maxChars) {
+    return { excerpt: normalized, truncated: false };
+  }
+
+  const rawSlice = normalized.slice(0, Math.max(1, maxChars - 1));
+  const safeSlice = rawSlice.length > 24
+    ? rawSlice.slice(0, Math.max(1, rawSlice.lastIndexOf(" ")))
+    : rawSlice;
+
+  return {
+    excerpt: `${safeSlice.trimEnd()}…`,
+    truncated: true,
+  };
+}
+
+function formatContextPackText(
+  query: string,
+  memories: MemoryContextPackMemory[],
+  truncated: boolean
+): string {
+  const header = [
+    `Context pack for "${query}"`,
+    truncated
+      ? "Compact excerpts only. Use 'memory_get' with an ID for the full memory."
+      : "Use 'memory_get' with an ID for the full memory.",
+  ].join("\n");
+
+  if (memories.length === 0) {
+    return `${header}\n\nNo matching memories found.`;
+  }
+
+  const sections = memories.map((memory, index) => {
+    const title = memory.name || "Unnamed Memory";
+    const project = memory.project ? ` [${memory.project}]` : "";
+    const tags = memory.tags.length > 0 ? ` #${memory.tags.join(" #")}` : "";
+
+    return [
+      `${index + 1}. ${title}${project}`,
+      `   ID: ${memory.id}`,
+      `   Area: ${memory.area}${tags}`,
+      `   Match: ${memory.explanation} (${(memory.score * 100).toFixed(0)}%)`,
+      `   Excerpt: ${memory.excerpt || "(empty memory)"}`,
+    ].join("\n");
+  });
+
+  return `${header}\n\n${sections.join("\n\n")}`;
+}
+
 function formatMatchExplanation(fields: MatchField[]): string {
   return fields.length > 0 ? `matched ${fields.join(", ")}` : "matched indexed fields";
 }
@@ -351,6 +433,101 @@ function getMemoryRecord(id: string): Memory | null {
   const row = stmt.get(id) as MemoryRow | undefined;
 
   return row ? rowToMemory(row) : null;
+}
+
+export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryContextPackResult {
+  const maxTokens = Math.min(Math.max(args.max_tokens ?? DEFAULT_CONTEXT_PACK_MAX_TOKENS, 200), 8000);
+  const maxMemories = Math.min(Math.max(args.max_memories ?? DEFAULT_CONTEXT_PACK_MAX_MEMORIES, 1), 20);
+  const candidateLimit = Math.min(MAX_CONTEXT_PACK_CANDIDATES, Math.max(maxMemories * 6, 10));
+  const searchResults = searchMemories({
+    query: args.query,
+    area: args.area,
+    project: args.project,
+    limit: candidateLimit,
+    search_mode: args.search_mode,
+  });
+
+  const filteredResults = args.tag
+    ? searchResults.filter((memory) => memory.tags.includes(args.tag as string))
+    : searchResults;
+
+  const selected: MemoryContextPackMemory[] = [];
+  let remainingTokens = Math.max(0, maxTokens - CONTEXT_PACK_HEADER_BUDGET);
+  let truncated = filteredResults.length > maxMemories;
+
+  for (const result of filteredResults) {
+    if (selected.length >= maxMemories) {
+      truncated = true;
+      break;
+    }
+
+    const memory = getMemoryRecord(result.id);
+    if (!memory) {
+      continue;
+    }
+
+    const remainingSlots = Math.max(1, maxMemories - selected.length);
+    const sectionBudget = Math.max(
+      CONTEXT_PACK_SECTION_BUDGET + MIN_EXCERPT_TOKENS,
+      Math.floor(remainingTokens / remainingSlots)
+    );
+    const excerptBudget = Math.max(MIN_EXCERPT_TOKENS, sectionBudget - CONTEXT_PACK_SECTION_BUDGET);
+
+    if (remainingTokens < CONTEXT_PACK_SECTION_BUDGET + MIN_EXCERPT_TOKENS) {
+      truncated = true;
+      break;
+    }
+
+    const excerptResult = truncateExcerpt(memory.content, excerptBudget);
+    let consumedTokens = estimateTokenCount(excerptResult.excerpt) + CONTEXT_PACK_SECTION_BUDGET;
+    let excerpt = excerptResult.excerpt;
+    let excerptTruncated = excerptResult.truncated;
+
+    if (consumedTokens > remainingTokens) {
+      const fallbackBudget = Math.max(MIN_EXCERPT_TOKENS, remainingTokens - CONTEXT_PACK_SECTION_BUDGET);
+      const fallbackExcerpt = truncateExcerpt(memory.content, fallbackBudget);
+      const fallbackTokens = estimateTokenCount(fallbackExcerpt.excerpt) + CONTEXT_PACK_SECTION_BUDGET;
+
+      if (fallbackTokens > remainingTokens) {
+        truncated = true;
+        break;
+      }
+
+      consumedTokens = fallbackTokens;
+      excerpt = fallbackExcerpt.excerpt;
+      excerptTruncated = fallbackExcerpt.truncated;
+    }
+
+    selected.push({
+      id: memory.id,
+      name: memory.name || null,
+      area: memory.area,
+      project: memory.project,
+      tags: memory.tags,
+      score: result.score,
+      explanation: result.explanation,
+      excerpt,
+    });
+
+    remainingTokens -= consumedTokens;
+    truncated = truncated || excerptTruncated;
+  }
+
+  if (selected.length < filteredResults.length) {
+    truncated = true;
+  }
+
+  const text = formatContextPackText(args.query, selected, truncated);
+
+  return {
+    success: true,
+    query: args.query,
+    count: selected.length,
+    max_tokens: maxTokens,
+    estimated_tokens: estimateTokenCount(text),
+    truncated,
+    memories: selected,
+  };
 }
 
 function findMemoriesByNormalizedName(matchName: string, project: string | null | undefined): Memory[] {

@@ -26,6 +26,7 @@ Operational context is stored through Omni Memory itself.
 - Full-text search with FTS5
 - MCP-native tools
 - **Progressive Disclosure:** Searches return metadata and summaries instead of full text to prevent LLM context overflow.
+- **Context Packs:** `memory_context_pack` assembles compact, token-budgeted excerpts for prompt construction.
 - **Active Forgetting Tracking:** Read actions (`memory_get`) increment `access_count` and update `accessed_at`.
 - CRUD operations (`memory_add`, `memory_upsert`, `memory_get`, `memory_update`, `memory_delete`, `memory_list`, `memory_search`)
 - Context optimization tools (`memory_prune`)
@@ -281,6 +282,27 @@ Use `memory_add` for clearly new, one-off memories.
 *Note: `search_mode` tunes ranking only. `balanced` is the default, `exact` boosts exact title matches harder, and `broad` is more permissive for content-heavy results.*
 *Search results include a compact `Match:` explanation showing which indexed fields contributed to the result.*
 
+### `memory_context_pack`
+
+*Note: Builds a compact prompt-ready bundle from matching memories without incrementing `access_count`. It keeps progressive disclosure intact by returning short excerpts instead of full documents.*
+
+```json
+{
+  "query": "typescript configuration",
+  "project": "my-project",
+  "tag": "important",
+  "max_tokens": 1200,
+  "max_memories": 5,
+  "search_mode": "balanced"
+}
+```
+
+Returns:
+
+- compact text for immediate agent use
+- structured metadata with `count`, `estimated_tokens`, `truncated`, and per-memory excerpts
+- excerpts ordered by the existing `memory_search` ranking
+
 ### `memory_stats`
 
 ```json
@@ -361,6 +383,12 @@ Minimum release/update gate:
 3. `npm run check`
 4. Update docs for any behavior/config change
 5. Add/update important project memory in Omni Memory
+
+Post-change runtime verification for this repository:
+
+6. `npm run build`
+7. Sync repo `dist/` into `C:\Users\allan\.local\mcp\omni-memory-mcp\dist`
+8. Smoke test the deployed `omni-memory-mcp`
 
 Operational checklist:
 

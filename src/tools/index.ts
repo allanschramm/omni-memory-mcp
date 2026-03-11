@@ -17,3 +17,5 @@ export { schema as deleteSchema, handler as deleteHandler } from "./delete.js";
 export { schema as listSchema, handler as listHandler } from "./list.js";
 export { schema as searchSchema, handler as searchHandler } from "./search.js";
 export { schema as statsSchema, handler as statsHandler } from "./stats.js";
+export { schema as pruneSchema, handler as pruneHandler } from "./prune.js";
+export { schema as contextPackSchema, handler as contextPackHandler } from "./context-pack.js";
