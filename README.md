@@ -7,7 +7,15 @@ Universal memory MCP server for multi-agent workflows.
 
 - Package: `@sharkdyt/omni-memory-mcp`
 - npm: `https://www.npmjs.com/package/@sharkdyt/omni-memory-mcp`
-- Current `latest`: `1.0.6`
+- Current `latest`: `1.0.7`
+
+## Release Notes
+
+### v1.0.7
+
+- Ships `memory_context_pack` for read-only, token-budgeted prompt assembly.
+- Returns compact excerpts plus structured metadata without mutating `access_count`.
+- Keeps the current local SQLite + FTS5 architecture: no schema migration, vector retrieval, or ranking rewrite.
 
 ## Project Memory
 
