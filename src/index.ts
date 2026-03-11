@@ -17,6 +17,7 @@ import { schema as listSchema, handler as listHandler } from "./tools/list.js";
 import { schema as searchSchema, handler as searchHandler } from "./tools/search.js";
 import { schema as statsSchema, handler as statsHandler } from "./tools/stats.js";
 import { schema as pruneSchema, handler as pruneHandler } from "./tools/prune.js";
+import { schema as contextPackSchema, handler as contextPackHandler } from "./tools/context-pack.js";
 
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
@@ -83,6 +84,13 @@ server.tool(
   "Full-text search across all memories using FTS5.",
   searchSchema,
   searchHandler
+);
+
+server.tool(
+  "memory_context_pack",
+  "Assemble a compact, token-budgeted context pack from matching memories without reading full documents.",
+  contextPackSchema,
+  contextPackHandler
 );
 
 server.tool(
