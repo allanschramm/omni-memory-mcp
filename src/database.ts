@@ -538,7 +538,7 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
     return [];
   }
 
-  let sql = "SELECT * FROM memories WHERE name IS NOT NULL";
+  let sql = "SELECT id, name FROM memories WHERE name IS NOT NULL";
   const params: Array<string | null> = [];
 
   if (project === undefined || project === null) {
@@ -549,11 +549,24 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   }
 
   const stmt = database.prepare(sql);
-  const rows = stmt.all(...params) as MemoryRow[];
+  const rows = stmt.all(...params) as { id: string; name: string | null }[];
 
-  return rows
-    .map(rowToMemory)
-    .filter((memory) => normalizeMemoryName(memory.name) === normalizedTarget);
+  const matchingIds = rows
+    .filter((row) => normalizeMemoryName(row.name) === normalizedTarget)
+    .map((row) => row.id);
+
+  if (matchingIds.length === 0) {
+    return [];
+  }
+
+  // Performance optimization: we fetch only the ID and Name first, so we can do the exact
+  // normalized string match in JS without parsing JSON tags and metadata for thousands of rows.
+  // Then we fetch the full rows only for the matched IDs.
+  const fullRows = database.prepare(
+    `SELECT * FROM memories WHERE id IN (${matchingIds.map(() => "?").join(",")})`
+  ).all(...matchingIds) as MemoryRow[];
+
+  return fullRows.map(rowToMemory);
 }
 
 export function addMemory(args: AddMemoryArgs): { id: string } {
