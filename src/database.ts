@@ -603,9 +603,16 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   // Performance optimization: we fetch only the ID and Name first, so we can do the exact
   // normalized string match in JS without parsing JSON tags and metadata for thousands of rows.
   // Then we fetch the full rows only for the matched IDs.
-  const fullRows = database.prepare(
-    `SELECT * FROM memories WHERE id IN (${matchingIds.map(() => "?").join(",")})`
-  ).all(...matchingIds) as MemoryRow[];
+  // Chunking to avoid SQLite parameter limit (999)
+  const chunkSize = 900;
+  const fullRows: MemoryRow[] = [];
+  for (let i = 0; i < matchingIds.length; i += chunkSize) {
+    const chunk = matchingIds.slice(i, i + chunkSize);
+    const chunkRows = database.prepare(
+      `SELECT * FROM memories WHERE id IN (${chunk.map(() => "?").join(",")})`
+    ).all(...chunk) as MemoryRow[];
+    fullRows.push(...chunkRows);
+  }
 
   return fullRows.map(rowToMemory);
 }
@@ -916,7 +923,8 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const searchMode = args.search_mode ?? "balanced";
 
   // Split query into individual words, ignore empty spaces
-  const words = args.query.trim().split(/\s+/).filter(Boolean);
+  // Limit to 50 words to avoid SQLite parameter limit (max 999)
+  const words = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 50);
 
   let sql = "SELECT * FROM memories WHERE 1=1";
   const params: (string | number)[] = [];
@@ -929,8 +937,10 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
     }
   } else {
     // Fallback if empty query
+    // Truncate query to 1000 chars to avoid performance issues with extremely large strings
+    const truncatedQuery = args.query.slice(0, 1000);
     sql += " AND (COALESCE(name, '') LIKE ? OR content LIKE ? OR COALESCE(project, '') LIKE ? OR tags LIKE ?)";
-    params.push(`%${args.query}%`, `%${args.query}%`, `%${args.query}%`, `%${args.query}%`);
+    params.push(`%${truncatedQuery}%`, `%${truncatedQuery}%`, `%${truncatedQuery}%`, `%${truncatedQuery}%`);
   }
 
   if (args.area) {
