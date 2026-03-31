@@ -435,6 +435,40 @@ function getMemoryRecord(id: string): Memory | null {
   return row ? rowToMemory(row) : null;
 }
 
+/**
+ * Helper to batch-fetch records using an IN clause to avoid N+1 query overhead.
+ * Chunks IN clauses to avoid SQLite parameter limit errors.
+ */
+function getMemoriesByIds(ids: string[]): Record<string, Memory> {
+  const database = getDatabase();
+  const resultMap: Record<string, Memory> = {};
+
+  if (!ids || ids.length === 0) {
+    return resultMap;
+  }
+
+  // Deduplicate IDs
+  const uniqueIds = Array.from(new Set(ids));
+
+  // Chunking to avoid SQLITE_LIMIT_VARIABLE_NUMBER (typically 999)
+  const CHUNK_SIZE = 900;
+
+  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(",");
+    const sql = `SELECT * FROM memories WHERE id IN (${placeholders})`;
+    const stmt = database.prepare(sql);
+
+    const rows = stmt.all(...chunk) as MemoryRow[];
+    for (const row of rows) {
+      const memory = rowToMemory(row);
+      resultMap[memory.id] = memory;
+    }
+  }
+
+  return resultMap;
+}
+
 export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryContextPackResult {
   const maxTokens = Math.min(Math.max(args.max_tokens ?? DEFAULT_CONTEXT_PACK_MAX_TOKENS, 200), 8000);
   const maxMemories = Math.min(Math.max(args.max_memories ?? DEFAULT_CONTEXT_PACK_MAX_MEMORIES, 1), 20);
@@ -455,13 +489,20 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
   let remainingTokens = Math.max(0, maxTokens - CONTEXT_PACK_HEADER_BUDGET);
   let truncated = filteredResults.length > maxMemories;
 
+  // Bolt: Performance Optimization
+  // Extract IDs to batch-fetch full memory records, avoiding N+1 query overhead.
+  // We fetch all filteredResults IDs at once since candidateLimit bounds this to at most 50,
+  // preventing skipped items from breaking the loop if they exceed token limits.
+  const idsToFetch = filteredResults.map(r => r.id);
+  const memoryMap = getMemoriesByIds(idsToFetch);
+
   for (const result of filteredResults) {
     if (selected.length >= maxMemories) {
       truncated = true;
       break;
     }
 
-    const memory = getMemoryRecord(result.id);
+    const memory = memoryMap[result.id];
     if (!memory) {
       continue;
     }
