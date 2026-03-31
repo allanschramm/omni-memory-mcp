@@ -427,6 +427,24 @@ function toSearchResult(memory: Memory, query: string, baseScore: number, search
   };
 }
 
+function getMemoriesByIds(ids: string[]): Map<string, Memory> {
+  if (ids.length === 0) {
+    return new Map();
+  }
+
+  const database = getDatabase();
+  const placeholders = ids.map(() => "?").join(",");
+  const stmt = database.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`);
+  const rows = stmt.all(...ids) as MemoryRow[];
+
+  const results = new Map<string, Memory>();
+  for (const row of rows) {
+    const memory = rowToMemory(row);
+    results.set(memory.id, memory);
+  }
+  return results;
+}
+
 function getMemoryRecord(id: string): Memory | null {
   const database = getDatabase();
   const stmt = database.prepare("SELECT * FROM memories WHERE id = ?");
@@ -455,13 +473,17 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
   let remainingTokens = Math.max(0, maxTokens - CONTEXT_PACK_HEADER_BUDGET);
   let truncated = filteredResults.length > maxMemories;
 
+  // Optimized: fetch all candidate memories in one query
+  const candidateIds = filteredResults.map((r) => r.id);
+  const memoryMap = getMemoriesByIds(candidateIds);
+
   for (const result of filteredResults) {
     if (selected.length >= maxMemories) {
       truncated = true;
       break;
     }
 
-    const memory = getMemoryRecord(result.id);
+    const memory = memoryMap.get(result.id);
     if (!memory) {
       continue;
     }
