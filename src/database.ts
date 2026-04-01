@@ -968,16 +968,19 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   const database = getDatabase();
   const threshold = args.threshold_score ?? 0;
 
-  // We need to fetch all memories to calculate their dynamic decay score
-  const stmt = database.prepare("SELECT * FROM memories");
-  const rows = stmt.all() as MemoryRow[];
+  // Bolt: Performance Optimization
+  // Fetch only the minimal required columns instead of `SELECT *`
+  // to avoid loading large `content` blobs and forcing `rowToMemory`
+  // to run `JSON.parse` thousands of times for discarded rows.
+  const stmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
+  const rows = stmt.all() as { id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }[];
 
   const toPrune: { id: string; name: string | null }[] = [];
 
   for (const row of rows) {
-    const memory = rowToMemory(row);
-    if ((memory.decay_score ?? 0) < threshold) {
-      toPrune.push({ id: memory.id, name: memory.name || null });
+    const decayScore = calculateDecayScore(row.created_at, row.accessed_at, row.access_count || 0, 0);
+    if (decayScore < threshold) {
+      toPrune.push({ id: row.id, name: row.name || null });
     }
   }
 
