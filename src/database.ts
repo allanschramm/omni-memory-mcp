@@ -375,9 +375,8 @@ function formatMatchExplanation(fields: MatchField[]): string {
   return fields.length > 0 ? `matched ${fields.join(", ")}` : "matched indexed fields";
 }
 
-function computeSearchScore(memory: Memory, query: string, baseScore: number, matchedFields: MatchField[], searchMode: SearchMode): number {
+function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: number, matchedFields: MatchField[], searchMode: SearchMode): number {
   let score = baseScore;
-  const normalizedQuery = normalizeForExactMatch(query);
   const normalizedName = memory.name ? normalizeForExactMatch(memory.name) : "";
   const normalizedTags = memory.tags.map((tag) => normalizeForExactMatch(tag));
 
@@ -408,10 +407,9 @@ function computeSearchScore(memory: Memory, query: string, baseScore: number, ma
   return Number(score.toFixed(3));
 }
 
-function toSearchResult(memory: Memory, query: string, baseScore: number, searchMode: SearchMode): SearchResult {
-  const tokens = tokenizeQuery(query);
-  const matchedFields = getMatchedFields(memory, tokens);
-  const score = computeSearchScore(memory, query, baseScore, matchedFields, searchMode);
+function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode): SearchResult {
+  const matchedFields = getMatchedFields(memory, queryTokens);
+  const score = computeSearchScore(memory, normalizedQuery, baseScore, matchedFields, searchMode);
 
   return {
     id: memory.id,
@@ -904,11 +902,14 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
     const stmt = database.prepare(sql);
     const rows = stmt.all(...params) as Array<MemoryRow & { score?: number }>;
 
+    const queryTokens = tokenizeQuery(args.query);
+    const normalizedQuery = normalizeForExactMatch(args.query);
+
     return rows
       .map((row) => {
         const memory = rowToMemory(row);
         const baseScore = Math.abs(row.score ?? 0);
-        return toSearchResult(memory, args.query, baseScore, searchMode);
+        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode);
       })
       .sort((left, right) => right.score - left.score);
   } catch (error) {
@@ -962,8 +963,11 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const stmt = database.prepare(sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
+  const queryTokens = tokenizeQuery(args.query);
+  const normalizedQuery = normalizeForExactMatch(args.query);
+
   return rows
-    .map((row) => toSearchResult(rowToMemory(row), args.query, 0.5, searchMode))
+    .map((row) => toSearchResult(rowToMemory(row), queryTokens, normalizedQuery, 0.5, searchMode))
     .sort((left, right) => right.score - left.score);
 }
 
