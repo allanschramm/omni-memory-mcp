@@ -251,27 +251,30 @@ function sanitizeFtsQuery(rawQuery: string): string {
   return clean.trim() ? `"${clean.replace(/"/g, "\"\"").trim()}"` : rawQuery;
 }
 
-function hasTextMatch(value: string | null | undefined, token: string): boolean {
-  return Boolean(value && value.toLowerCase().includes(token));
-}
-
 function getMatchedFields(memory: Memory, tokens: string[]): MatchField[] {
   if (tokens.length === 0) {
     return [];
   }
 
   const fields: MatchField[] = [];
+
+  // Bolt: Performance Optimization
+  // Lowercase the strings once per memory instead of once per token in the some() loop
+  // This drastically reduces redundant string allocations during search mapping.
+  const nameLower = memory.name?.toLowerCase();
+  const contentLower = memory.content.toLowerCase();
+  const projectLower = memory.project?.toLowerCase();
   const tagsText = memory.tags.join(" ").toLowerCase();
 
-  if (tokens.some((token) => hasTextMatch(memory.name ?? null, token))) {
+  if (nameLower && tokens.some((token) => nameLower.includes(token))) {
     fields.push("name");
   }
 
-  if (tokens.some((token) => hasTextMatch(memory.content, token))) {
+  if (tokens.some((token) => contentLower.includes(token))) {
     fields.push("content");
   }
 
-  if (tokens.some((token) => hasTextMatch(memory.project, token))) {
+  if (projectLower && tokens.some((token) => projectLower.includes(token))) {
     fields.push("project");
   }
 
