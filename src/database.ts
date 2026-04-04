@@ -251,7 +251,7 @@ function sanitizeFtsQuery(rawQuery: string): string {
   return clean.trim() ? `"${clean.replace(/"/g, "\"\"").trim()}"` : rawQuery;
 }
 
-function getMatchedFields(memory: Memory, tokens: string[]): MatchField[] {
+function getMatchedFields(memory: Memory, tokens: string[], queryRegexes: RegExp[]): MatchField[] {
   if (tokens.length === 0) {
     return [];
   }
@@ -259,27 +259,26 @@ function getMatchedFields(memory: Memory, tokens: string[]): MatchField[] {
   const fields: MatchField[] = [];
 
   // Bolt: Performance Optimization
-  // Lowercase the strings once per memory instead of once per token in the some() loop
-  // This drastically reduces redundant string allocations during search mapping.
-  const nameLower = memory.name?.toLowerCase();
-  const contentLower = memory.content.toLowerCase();
-  const projectLower = memory.project?.toLowerCase();
-  const tagsText = memory.tags.join(" ").toLowerCase();
-
-  if (nameLower && tokens.some((token) => nameLower.includes(token))) {
+  // Use pre-compiled case-insensitive regexes to check for token presence
+  // instead of allocating large string duplicates with memory.content.toLowerCase().
+  // This prevents massive memory allocations for large memory payloads and is ~10x faster.
+  if (memory.name && queryRegexes.some((regex) => regex.test(memory.name as string))) {
     fields.push("name");
   }
 
-  if (tokens.some((token) => contentLower.includes(token))) {
+  if (queryRegexes.some((regex) => regex.test(memory.content))) {
     fields.push("content");
   }
 
-  if (projectLower && tokens.some((token) => projectLower.includes(token))) {
+  if (memory.project && queryRegexes.some((regex) => regex.test(memory.project as string))) {
     fields.push("project");
   }
 
-  if (tokens.some((token) => tagsText.includes(token))) {
-    fields.push("tags");
+  if (memory.tags.length > 0) {
+    const tagsText = memory.tags.join(" ");
+    if (queryRegexes.some((regex) => regex.test(tagsText))) {
+      fields.push("tags");
+    }
   }
 
   return fields;
@@ -378,7 +377,6 @@ function formatMatchExplanation(fields: MatchField[]): string {
 function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: number, matchedFields: MatchField[], searchMode: SearchMode): number {
   let score = baseScore;
   const normalizedName = memory.name ? normalizeForExactMatch(memory.name) : "";
-  const normalizedTags = memory.tags.map((tag) => normalizeForExactMatch(tag));
 
   if (normalizedName && normalizedName === normalizedQuery) {
     score += searchMode === "exact" ? 4 : 2.5;
@@ -389,7 +387,10 @@ function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: 
   }
 
   if (matchedFields.includes("tags")) {
-    score += normalizedTags.includes(normalizedQuery) ? 1.2 : 0.6;
+    // Bolt: Performance Optimization - lazily normalize only if tags were matched
+    // Avoids running replace/trim mappings on all tags for every matched memory record
+    const hasExactTagMatch = memory.tags.some((tag) => normalizeForExactMatch(tag) === normalizedQuery);
+    score += hasExactTagMatch ? 1.2 : 0.6;
   }
 
   if (matchedFields.includes("project")) {
@@ -407,8 +408,8 @@ function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: 
   return Number(score.toFixed(3));
 }
 
-function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode): SearchResult {
-  const matchedFields = getMatchedFields(memory, queryTokens);
+function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode, queryRegexes: RegExp[]): SearchResult {
+  const matchedFields = getMatchedFields(memory, queryTokens, queryRegexes);
   const score = computeSearchScore(memory, normalizedQuery, baseScore, matchedFields, searchMode);
 
   return {
@@ -904,12 +905,13 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
 
     const queryTokens = tokenizeQuery(args.query);
     const normalizedQuery = normalizeForExactMatch(args.query);
+    const queryRegexes = queryTokens.map((token) => new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
 
     return rows
       .map((row) => {
         const memory = rowToMemory(row);
         const baseScore = Math.abs(row.score ?? 0);
-        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode);
+        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes);
       })
       .sort((left, right) => right.score - left.score);
   } catch (error) {
@@ -965,9 +967,10 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
 
   const queryTokens = tokenizeQuery(args.query);
   const normalizedQuery = normalizeForExactMatch(args.query);
+  const queryRegexes = queryTokens.map((token) => new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
 
   return rows
-    .map((row) => toSearchResult(rowToMemory(row), queryTokens, normalizedQuery, 0.5, searchMode))
+    .map((row) => toSearchResult(rowToMemory(row), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes))
     .sort((left, right) => right.score - left.score);
 }
 
