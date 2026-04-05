@@ -791,7 +791,10 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   const database = getDatabase();
   const limit = Math.min(args.limit || 50, 100);
 
-  let sql = "SELECT * FROM memories WHERE 1=1";
+  // Bolt: Performance Optimization
+  // Use explicit column selection instead of SELECT * to avoid loading large 'content' strings into memory.
+  // This supports 'Progressive Disclosure' and avoids massive string allocations since list tools don't need the full text.
+  let sql = "SELECT id, name, '' as content, area, project, tags, metadata, accessed_at, access_count, created_at, updated_at FROM memories WHERE 1=1";
   const params: (string | number)[] = [];
 
   if (args.area) {
