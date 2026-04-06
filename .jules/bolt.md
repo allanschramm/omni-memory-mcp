@@ -21,3 +21,7 @@
 ## 2025-02-28 - Optimizing listMemories with explicit SELECT
 **Learning:** Using `SELECT *` in `listMemories` loads full `content` blobs into Node.js memory just to discard them, as the API implements Progressive Disclosure and doesn't return `content`. For large payloads, this causes massive GC pressure, unnecessary memory allocations, and slows down database queries significantly.
 **Action:** Replace `SELECT *` with an explicit column selection (`SELECT id, name, '' as content, area, ...`) for list queries that do not return the full `content`. This prevents loading large strings entirely from the database to memory, decreasing response time and GC overhead drastically.
+
+## 2025-03-05 - Hoisting Date and Time Calculations to Reduce GC Pressure
+**Learning:** Instantiating `new Date()` and `new Date(string)` inside tight loops like database result mapping or `pruneMemories` generates significant and unnecessary CPU load and Garbage Collection (GC) pressure. Repeatedly evaluating `Date.now()` or instantiating Date objects for invariant current time or parsing known date strings scales O(n) per array traversal.
+**Action:** Always hoist `Date.now()` outside of mapping and filter loops and pass the timestamp down via an optional parameter to metric calculation functions. Use `Date.parse(dateString)` instead of `new Date(dateString).getTime()` to safely retrieve timestamps from string representations without incurring full object allocations.

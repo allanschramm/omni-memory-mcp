@@ -204,11 +204,11 @@ export function calculateDecayScore(
   createdAt: string,
   accessedAt: string | null,
   accessCount: number,
-  baseScore: number = 0
+  baseScore: number = 0,
+  nowTime: number = Date.now()
 ): number {
-  const lastAccess = accessedAt ? new Date(accessedAt) : new Date(createdAt);
-  const now = new Date();
-  const diffDays = Math.max(0, (now.getTime() - lastAccess.getTime()) / (1000 * 60 * 60 * 24));
+  const lastAccessTime = accessedAt ? Date.parse(accessedAt) : Date.parse(createdAt);
+  const diffDays = Math.max(0, (nowTime - lastAccessTime) / (1000 * 60 * 60 * 24));
 
   let score = baseScore;
   score += Math.min(1.0, accessCount * 0.05); // Bonus max +1.0
@@ -217,7 +217,7 @@ export function calculateDecayScore(
   return Number(score.toFixed(3));
 }
 
-function rowToMemory(row: MemoryRow): Memory {
+function rowToMemory(row: MemoryRow, nowTime?: number): Memory {
   const accessedAt = row.accessed_at as string | null;
   const accessCount = (row.access_count as number) || 0;
   const createdAt = row.created_at as string;
@@ -234,7 +234,7 @@ function rowToMemory(row: MemoryRow): Memory {
     access_count: accessCount,
     created_at: createdAt,
     updated_at: row.updated_at as string,
-    decay_score: calculateDecayScore(createdAt, accessedAt, accessCount, 0),
+    decay_score: calculateDecayScore(createdAt, accessedAt, accessCount, 0, nowTime),
   };
 }
 
@@ -454,6 +454,7 @@ function getMemoriesByIds(ids: string[]): Record<string, Memory> {
 
   // Chunking to avoid SQLITE_LIMIT_VARIABLE_NUMBER (typically 999)
   const CHUNK_SIZE = 900;
+  const now = Date.now();
 
   for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
     const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
@@ -463,7 +464,7 @@ function getMemoriesByIds(ids: string[]): Record<string, Memory> {
 
     const rows = stmt.all(...chunk) as MemoryRow[];
     for (const row of rows) {
-      const memory = rowToMemory(row);
+      const memory = rowToMemory(row, now);
       resultMap[memory.id] = memory;
     }
   }
@@ -616,7 +617,8 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
     fullRows.push(...chunkRows);
   }
 
-  return fullRows.map(rowToMemory);
+  const now = Date.now();
+  return fullRows.map(row => rowToMemory(row, now));
 }
 
 export function addMemory(args: AddMemoryArgs): { id: string } {
@@ -818,7 +820,8 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   const stmt = database.prepare(sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
-  return rows.map(rowToMemory);
+  const now = Date.now();
+  return rows.map(row => rowToMemory(row, now));
 }
 
 export function getStats(): MemoryStats {
@@ -909,10 +912,11 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
     const queryTokens = tokenizeQuery(args.query);
     const normalizedQuery = normalizeForExactMatch(args.query);
     const queryRegexes = queryTokens.map((token) => new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+    const now = Date.now();
 
     return rows
       .map((row) => {
-        const memory = rowToMemory(row);
+        const memory = rowToMemory(row, now);
         const baseScore = Math.abs(row.score ?? 0);
         return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes);
       })
@@ -971,9 +975,10 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const queryTokens = tokenizeQuery(args.query);
   const normalizedQuery = normalizeForExactMatch(args.query);
   const queryRegexes = queryTokens.map((token) => new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+  const now = Date.now();
 
   return rows
-    .map((row) => toSearchResult(rowToMemory(row), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes))
+    .map((row) => toSearchResult(rowToMemory(row, now), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes))
     .sort((left, right) => right.score - left.score);
 }
 
@@ -989,9 +994,10 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   const rows = stmt.all() as { id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }[];
 
   const toPrune: { id: string; name: string | null }[] = [];
+  const now = Date.now();
 
   for (const row of rows) {
-    const decayScore = calculateDecayScore(row.created_at, row.accessed_at, row.access_count || 0, 0);
+    const decayScore = calculateDecayScore(row.created_at, row.accessed_at, row.access_count || 0, 0, now);
     if (decayScore < threshold) {
       toPrune.push({ id: row.id, name: row.name || null });
     }
