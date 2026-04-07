@@ -621,14 +621,25 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   return fullRows.map(row => rowToMemory(row, now));
 }
 
+function serializeTags(tags?: string[]): string {
+  return JSON.stringify(tags || []);
+}
+
+function serializeMetadata(metadata?: Record<string, unknown> | null): string | null {
+  if (!metadata) {
+    return null;
+  }
+  return JSON.stringify(metadata);
+}
+
 export function addMemory(args: AddMemoryArgs): { id: string } {
   const database = getDatabase();
   const id = uuidv4();
   const area = args.area || "general";
   const project = args.project || null;
-  const tags = JSON.stringify(args.tags || []);
+  const tags = serializeTags(args.tags);
   const name = args.name || null;
-  const metadata = args.metadata ? JSON.stringify(args.metadata) : null;
+  const metadata = serializeMetadata(args.metadata);
 
   const stmt = database.prepare(`
     INSERT INTO memories (id, name, content, area, project, tags, metadata)
@@ -663,8 +674,8 @@ export function updateMemory(args: UpdateMemoryArgs): { changes: number } {
   const content = args.content ?? existing.content;
   const area = args.area ?? existing.area;
   const project = args.project !== undefined ? args.project : existing.project;
-  const tags = args.tags !== undefined ? JSON.stringify(args.tags) : JSON.stringify(existing.tags);
-  const metadata = args.metadata !== undefined ? (args.metadata === null ? null : JSON.stringify(args.metadata)) : existing.metadata === null ? null : JSON.stringify(existing.metadata);
+  const tags = serializeTags(args.tags ?? existing.tags);
+  const metadata = serializeMetadata(args.metadata !== undefined ? args.metadata : existing.metadata);
 
   const stmt = database.prepare(`
     UPDATE memories 
