@@ -73,7 +73,7 @@ const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 
 let db: Database.Database | null = null;
 
-function getDatabase(): Database.Database {
+export function getDatabase(): Database.Database {
   if (db) return db;
 
   // Ensure storage directories exist
@@ -171,6 +171,13 @@ function initializeSchema(database: Database.Database): void {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // Bolt: Performance Optimization
+  // Add indexes to frequently queried columns to prevent full table scans
+  // during listMemories and getStats operations.
+  database.exec("CREATE INDEX IF NOT EXISTS idx_memories_area ON memories(area)");
+  database.exec("CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project)");
+  database.exec("CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)");
 
   if (!hasName) {
     // Rebuild the FTS data
