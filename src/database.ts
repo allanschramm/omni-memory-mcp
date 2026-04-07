@@ -301,6 +301,13 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Escapes SQLite LIKE wildcards (% and _) and the escape character (\)
+ */
+function escapeLikeWildcards(text: string): string {
+  return text.replace(/[\\%_]/g, "\\$&");
+}
+
 function estimateTokenCount(value: string): number {
   const normalized = normalizeWhitespace(value);
   if (!normalized) {
@@ -945,15 +952,17 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   // If there are words, add a LIKE condition for each word
   if (words.length > 0) {
     for (const word of words) {
-      sql += " AND (COALESCE(name, '') LIKE ? OR content LIKE ? OR COALESCE(project, '') LIKE ? OR tags LIKE ?)";
-      params.push(`%${word}%`, `%${word}%`, `%${word}%`, `%${word}%`);
+      const escapedWord = escapeLikeWildcards(word);
+      sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
+      params.push(`%${escapedWord}%`, `%${escapedWord}%`, `%${escapedWord}%`, `%${escapedWord}%`);
     }
   } else {
     // Fallback if empty query
     // Truncate query to 1000 chars to avoid performance issues with extremely large strings
     const truncatedQuery = args.query.slice(0, 1000);
-    sql += " AND (COALESCE(name, '') LIKE ? OR content LIKE ? OR COALESCE(project, '') LIKE ? OR tags LIKE ?)";
-    params.push(`%${truncatedQuery}%`, `%${truncatedQuery}%`, `%${truncatedQuery}%`, `%${truncatedQuery}%`);
+    const escapedTruncatedQuery = escapeLikeWildcards(truncatedQuery);
+    sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
+    params.push(`%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`);
   }
 
   if (args.area) {
