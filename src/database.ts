@@ -72,6 +72,21 @@ function resolveStoragePaths(): { dataDir: string; dbPath: string } {
 const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 
 let db: Database.Database | null = null;
+const inStatementCache = new Map<number, Database.Statement>();
+
+/**
+ * Returns a prepared statement for fetching full memory rows by IDs.
+ * Caches statements by placeholder count to avoid redundant SQL compilation.
+ */
+function getInStatement(database: Database.Database, count: number): Database.Statement {
+  let stmt = inStatementCache.get(count);
+  if (!stmt) {
+    const placeholders = Array(count).fill("?").join(",");
+    stmt = database.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`);
+    inStatementCache.set(count, stmt);
+  }
+  return stmt;
+}
 
 export function getDatabase(): Database.Database {
   if (db) return db;
@@ -472,9 +487,7 @@ function getMemoriesByIds(ids: string[]): Record<string, Memory> {
 
   for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
     const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
-    const placeholders = chunk.map(() => "?").join(",");
-    const sql = `SELECT * FROM memories WHERE id IN (${placeholders})`;
-    const stmt = database.prepare(sql);
+    const stmt = getInStatement(database, chunk.length);
 
     const rows = stmt.all(...chunk) as MemoryRow[];
     for (const row of rows) {
@@ -625,9 +638,7 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   const fullRows: MemoryRow[] = [];
   for (let i = 0; i < matchingIds.length; i += chunkSize) {
     const chunk = matchingIds.slice(i, i + chunkSize);
-    const chunkRows = database.prepare(
-      `SELECT * FROM memories WHERE id IN (${chunk.map(() => "?").join(",")})`
-    ).all(...chunk) as MemoryRow[];
+    const chunkRows = getInStatement(database, chunk.length).all(...chunk) as MemoryRow[];
     fullRows.push(...chunkRows);
   }
 
@@ -1049,6 +1060,7 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
 
 export function closeDatabase(): void {
   if (db) {
+    inStatementCache.clear();
     db.close();
     db = null;
   }
@@ -1059,6 +1071,7 @@ export { resolveStoragePaths, normalizeUserPath };
 // For testing
 export function resetDatabase(): void {
   if (db) {
+    inStatementCache.clear();
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
