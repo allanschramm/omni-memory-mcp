@@ -25,3 +25,7 @@
 ## 2025-03-05 - Hoisting Date and Time Calculations to Reduce GC Pressure
 **Learning:** Instantiating `new Date()` and `new Date(string)` inside tight loops like database result mapping or `pruneMemories` generates significant and unnecessary CPU load and Garbage Collection (GC) pressure. Repeatedly evaluating `Date.now()` or instantiating Date objects for invariant current time or parsing known date strings scales O(n) per array traversal.
 **Action:** Always hoist `Date.now()` outside of mapping and filter loops and pass the timestamp down via an optional parameter to metric calculation functions. Use `Date.parse(dateString)` instead of `new Date(dateString).getTime()` to safely retrieve timestamps from string representations without incurring full object allocations.
+
+## 2025-03-08 - Adding Database Indexes on Frequently Queried Fields
+**Learning:** Full table scans to count rows (e.g. `SELECT area, count(*) ... GROUP BY area`) or list records (e.g. `SELECT * ... WHERE area = ? ORDER BY created_at DESC`) without appropriate indexing become very slow and consume excessive CPU/I/O on tables with a large amount of records (100,000+).
+**Action:** When working with SQLite, apply `CREATE INDEX IF NOT EXISTS` for columns commonly used in `WHERE`, `ORDER BY`, or `GROUP BY` clauses, such as `area`, `project`, and `created_at`. This drastically reduces read times without adding noticeable overhead for single-record inserts.
