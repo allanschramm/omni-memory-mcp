@@ -340,19 +340,47 @@ function estimateTokenCount(value: string): number {
 }
 
 function truncateExcerpt(content: string, maxTokens: number): { excerpt: string; truncated: boolean } {
-  const normalized = normalizeWhitespace(content);
-
-  if (!normalized) {
-    return { excerpt: "", truncated: false };
-  }
-
   if (maxTokens <= 0) {
     return { excerpt: "", truncated: true };
   }
 
   const maxChars = Math.max(1, maxTokens * 4);
-  if (normalized.length <= maxChars) {
+
+  // Bolt: Performance Optimization
+  // Fast path for small strings to avoid unnecessary chunking logic
+  if (content.length <= maxChars) {
+    const normalized = normalizeWhitespace(content);
     return { excerpt: normalized, truncated: false };
+  }
+
+  // Bolt: Performance Optimization
+  // Prevent massive string allocations by taking a small chunk of the content first.
+  // Instead of running regex replace (O(n)) over a huge document just to slice the
+  // first few characters, we only process what we likely need.
+  const chunkLength = maxChars * 2 + 100;
+  const chunk = content.length > chunkLength ? content.slice(0, chunkLength) : content;
+  const normalizedChunk = normalizeWhitespace(chunk);
+
+  if (normalizedChunk.length >= maxChars || content.length <= chunkLength) {
+    if (normalizedChunk.length <= maxChars && content.length <= chunkLength) {
+      return { excerpt: normalizedChunk, truncated: false };
+    }
+
+    const rawSlice = normalizedChunk.slice(0, Math.max(1, maxChars - 1));
+    const safeSlice = rawSlice.length > 24
+      ? rawSlice.slice(0, Math.max(1, rawSlice.lastIndexOf(" ")))
+      : rawSlice;
+
+    return {
+      excerpt: `${safeSlice.trimEnd()}…`,
+      truncated: true,
+    };
+  }
+
+  // Fallback if the content had so much consecutive whitespace that our chunk collapsed
+  const normalized = normalizeWhitespace(content);
+  if (!normalized) {
+    return { excerpt: "", truncated: false };
   }
 
   const rawSlice = normalized.slice(0, Math.max(1, maxChars - 1));
