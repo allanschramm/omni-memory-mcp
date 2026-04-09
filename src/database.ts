@@ -648,11 +648,14 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   }
 
   const stmt = database.prepare(sql);
-  const rows = stmt.all(...params) as { id: string; name: string | null }[];
+  const iterator = stmt.iterate(...params) as IterableIterator<{ id: string; name: string | null }>;
 
-  const matchingIds = rows
-    .filter((row) => normalizeMemoryName(row.name) === normalizedTarget)
-    .map((row) => row.id);
+  const matchingIds: string[] = [];
+  for (const row of iterator) {
+    if (normalizeMemoryName(row.name) === normalizedTarget) {
+      matchingIds.push(row.id);
+    }
+  }
 
   if (matchingIds.length === 0) {
     return [];
@@ -1057,12 +1060,12 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   // to avoid loading large `content` blobs and forcing `rowToMemory`
   // to run `JSON.parse` thousands of times for discarded rows.
   const stmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
-  const rows = stmt.all() as { id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }[];
+  const iterator = stmt.iterate() as IterableIterator<{ id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }>;
 
   const toPrune: { id: string; name: string | null }[] = [];
   const now = Date.now();
 
-  for (const row of rows) {
+  for (const row of iterator) {
     const decayScore = calculateDecayScore(row.created_at, row.accessed_at, row.access_count || 0, 0, now);
     if (decayScore < threshold) {
       toPrune.push({ id: row.id, name: row.name || null });
