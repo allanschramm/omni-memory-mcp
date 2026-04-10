@@ -29,3 +29,7 @@
 ## 2025-03-08 - Adding Database Indexes on Frequently Queried Fields
 **Learning:** Full table scans to count rows (e.g. `SELECT area, count(*) ... GROUP BY area`) or list records (e.g. `SELECT * ... WHERE area = ? ORDER BY created_at DESC`) without appropriate indexing become very slow and consume excessive CPU/I/O on tables with a large amount of records (100,000+).
 **Action:** When working with SQLite, apply `CREATE INDEX IF NOT EXISTS` for columns commonly used in `WHERE`, `ORDER BY`, or `GROUP BY` clauses, such as `area`, `project`, and `created_at`. This drastically reduces read times without adding noticeable overhead for single-record inserts.
+
+## 2024-05-18 - [Optimize `findMemoriesByNormalizedName` and `pruneMemories` Iterator]
+**Learning:** For unbounded `SELECT` operations matching many or all database rows (such as listing candidates or checking items to prune), using `.all()` in `better-sqlite3` fetches the entire dataset into a massive Node.js memory array at once. This drastically spikes peak memory usage and garbage collection times compared to processing one row at a time.
+**Action:** When evaluating or filtering large datasets, prefer streaming the database rows via `.iterate()` instead of loading them all via `.all()`. This prevents OOM errors for large databases and allows early returns or efficient filtering logic to operate immediately without loading unused records.
