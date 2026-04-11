@@ -331,12 +331,32 @@ function escapeLikeWildcards(text: string): string {
 }
 
 function estimateTokenCount(value: string): number {
-  const normalized = normalizeWhitespace(value);
-  if (!normalized) {
+  let len = 0;
+  let inWhitespace = true;
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    // Bolt: Performance Optimization
+    // Fast check for common ASCII whitespace (space, tab, newline, carriage return, vertical tab, form feed).
+    // Avoids massive string allocations and GC overhead caused by replace(/\s+/g, " ") for large memory payloads.
+    const isWs = code === 32 || (code >= 9 && code <= 13);
+    if (!isWs) {
+      len++;
+      inWhitespace = false;
+    } else if (!inWhitespace) {
+      len++;
+      inWhitespace = true;
+    }
+  }
+
+  if (inWhitespace && len > 0) {
+    len--;
+  }
+
+  if (len === 0) {
     return 0;
   }
 
-  return Math.max(1, Math.ceil(normalized.length / 4));
+  return Math.max(1, Math.ceil(len / 4));
 }
 
 function truncateExcerpt(content: string, maxTokens: number): { excerpt: string; truncated: boolean } {
