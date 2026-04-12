@@ -37,6 +37,11 @@
 ## 2025-04-10 - Optimizing estimateTokenCount String Processing
 **Learning:** Functions that calculate metrics on strings, like `estimateTokenCount` which measures the length of a normalized string, were using `replace(/\s+/g, " ").trim()`. This incurs a massive performance penalty on large text payloads as it forces the V8 engine to allocate full string duplicates, perform complex regex pattern matching, and causes high Garbage Collection (GC) overhead.
 **Action:** When evaluating metrics on a string (like counting length or words) without needing the processed text itself, calculate it mathematically by streaming over the characters `charCodeAt`. Avoid regex string `replace` or `match` operations entirely. This transforms an expensive O(N) allocation and regex operation into a highly efficient O(N) traversal in O(1) space, dramatically reducing latency.
+
+## 2025-04-12 - Replacing .toFixed() with Math.round() for performance optimization
+**Learning:** The use of `Number(value.toFixed(n))` in high-frequency scoring functions (like `calculateDecayScore` and `computeSearchScore`) creates unnecessary string allocations and string-to-number conversions.
+**Action:** Replace `Number(score.toFixed(3))` with `Math.round(score * 1000) / 1000` to yield CPU performance gains by avoiding expensive string allocations.
+
 ## 2025-05-18 - Replacing toFixed with Math.round
 **Learning:** `Number(score.toFixed(3))` creates unnecessary string allocations and string-to-number conversions in tight mathematical calculation loops (like `computeSearchScore` and `calculateDecayScore`), hurting CPU performance.
 **Action:** Use `Math.round(score * 1000) / 1000` instead of `Number(score.toFixed(3))`. This approach retains the required precision without allocating new string objects, resulting in up to 100x faster execution.
