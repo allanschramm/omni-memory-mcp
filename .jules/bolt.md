@@ -45,3 +45,7 @@
 ## 2025-05-18 - Replacing toFixed with Math.round
 **Learning:** `Number(score.toFixed(3))` creates unnecessary string allocations and string-to-number conversions in tight mathematical calculation loops (like `computeSearchScore` and `calculateDecayScore`), hurting CPU performance.
 **Action:** Use `Math.round(score * 1000) / 1000` instead of `Number(score.toFixed(3))`. This approach retains the required precision without allocating new string objects, resulting in up to 100x faster execution.
+
+## 2024-05-20 - Eliminating N+1 Query in pruneMemories deletion
+**Learning:** Iteratively calling `stmt.run(id)` for thousands of records inside a transaction, while atomic, still incurs significant overhead in the Node.js/SQLite bridge.
+**Action:** Implemented chunked batch deletion using `DELETE FROM memories WHERE id IN (...)`. Created a `getDeleteInStatement` helper to cache prepared statements for varying batch sizes (using a 900-item chunk size to stay safely under SQLite's 999 parameter limit). This transforms O(N) database calls into O(N/900) calls, drastically reducing execution time for large-scale pruning operations.

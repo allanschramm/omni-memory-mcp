@@ -73,6 +73,7 @@ const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 
 let db: Database.Database | null = null;
 const inStatementCache = new Map<number, Database.Statement>();
+const deleteInStatementCache = new Map<number, Database.Statement>();
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -84,6 +85,20 @@ function getInStatement(database: Database.Database, count: number): Database.St
     const placeholders = Array(count).fill("?").join(",");
     stmt = database.prepare(`SELECT * FROM memories WHERE id IN (${placeholders})`);
     inStatementCache.set(count, stmt);
+  }
+  return stmt;
+}
+
+/**
+ * Returns a prepared statement for deleting memories by IDs.
+ * Caches statements by placeholder count to avoid redundant SQL compilation.
+ */
+function getDeleteInStatement(database: Database.Database, count: number): Database.Statement {
+  let stmt = deleteInStatementCache.get(count);
+  if (!stmt) {
+    const placeholders = Array(count).fill("?").join(",");
+    stmt = database.prepare(`DELETE FROM memories WHERE id IN (${placeholders})`);
+    deleteInStatementCache.set(count, stmt);
   }
   return stmt;
 }
@@ -1099,13 +1114,18 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   }
 
   if (!args.dry_run && toPrune.length > 0) {
-    const deleteStmt = database.prepare("DELETE FROM memories WHERE id = ?");
-    const deleteMany = database.transaction((ids: string[]) => {
-      for (const id of ids) {
-        deleteStmt.run(id);
+    const ids = toPrune.map((p) => p.id);
+    const CHUNK_SIZE = 900;
+
+    const deleteInTransaction = database.transaction((allIds: string[]) => {
+      for (let i = 0; i < allIds.length; i += CHUNK_SIZE) {
+        const chunk = allIds.slice(i, i + CHUNK_SIZE);
+        const stmt = getDeleteInStatement(database, chunk.length);
+        stmt.run(...chunk);
       }
     });
-    deleteMany(toPrune.map(p => p.id));
+
+    deleteInTransaction(ids);
   }
 
   return {
@@ -1118,6 +1138,7 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
 export function closeDatabase(): void {
   if (db) {
     inStatementCache.clear();
+    deleteInStatementCache.clear();
     db.close();
     db = null;
   }
@@ -1129,6 +1150,7 @@ export { resolveStoragePaths, normalizeUserPath };
 export function resetDatabase(): void {
   if (db) {
     inStatementCache.clear();
+    deleteInStatementCache.clear();
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
