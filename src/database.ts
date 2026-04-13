@@ -927,13 +927,13 @@ export function getStats(): MemoryStats {
   const by_area = byAreaRows.reduce((acc, row) => {
     acc[row.area || "general"] = row.c;
     return acc;
-  }, {} as Record<string, number>);
+  }, Object.create(null) as Record<string, number>);
 
   const byProjectRows = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project").all() as Array<{ project: string | null; c: number }>;
   const by_project = byProjectRows.reduce((acc, row) => {
     acc[row.project || "unassigned"] = row.c;
     return acc;
-  }, {} as Record<string, number>);
+  }, Object.create(null) as Record<string, number>);
 
   const eventRows = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name").all() as Array<{
     event_name: string;
@@ -942,7 +942,7 @@ export function getStats(): MemoryStats {
   const event_counts = eventRows.reduce((acc, row) => {
     acc[row.event_name] = row.c;
     return acc;
-  }, {} as Record<string, number>);
+  }, Object.create(null) as Record<string, number>);
 
   let total_size_bytes = 0;
   if (DB_PATH !== ":memory:" && existsSync(DB_PATH)) {
