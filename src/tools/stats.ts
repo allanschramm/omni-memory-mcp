@@ -2,7 +2,6 @@
  * memory_stats tool - Get statistics about the Omni Memory database
  */
 
-import { z } from "zod";
 import { getStats } from "../database.js";
 import type { ToolCallback } from "./index.js";
 
