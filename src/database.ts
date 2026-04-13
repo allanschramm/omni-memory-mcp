@@ -506,7 +506,7 @@ function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: 
   return Math.round(score * 1000) / 1000;
 }
 
-function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode, queryRegexes: RegExp[]): SearchResult {
+function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode, queryRegexes: RegExp[], nowTime?: number): SearchResult {
   const matchedFields = getMatchedFields(memory, queryTokens, queryRegexes);
   const score = computeSearchScore(memory, normalizedQuery, baseScore, matchedFields, searchMode);
 
@@ -522,7 +522,8 @@ function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: 
     created_at: memory.created_at,
     updated_at: memory.updated_at,
     score,
-    decay_score: calculateDecayScore(memory.created_at, memory.accessed_at ?? null, memory.access_count || 0, score),
+    // Bolt: Performance Optimization - Pass down nowTime to avoid Date.now() evaluation inside mapping loops
+    decay_score: calculateDecayScore(memory.created_at, memory.accessed_at ?? null, memory.access_count || 0, score, nowTime),
     explanation: formatMatchExplanation(matchedFields),
   };
 }
@@ -1026,7 +1027,7 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
       .map((row) => {
         const memory = rowToMemory(row, now);
         const baseScore = Math.abs(row.score ?? 0);
-        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes);
+        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes, now);
       })
       .sort((left, right) => right.score - left.score);
   } catch (error) {
@@ -1088,7 +1089,7 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const now = Date.now();
 
   return rows
-    .map((row) => toSearchResult(rowToMemory(row, now), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes))
+    .map((row) => toSearchResult(rowToMemory(row, now), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes, now))
     .sort((left, right) => right.score - left.score);
 }
 
