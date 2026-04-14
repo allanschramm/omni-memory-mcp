@@ -209,6 +209,9 @@ function initializeSchema(database: Database.Database): void {
   database.exec("CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project)");
   database.exec("CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at DESC)");
 
+  // Add index on share_events.event_name to optimize getStats group by aggregation
+  database.exec("CREATE INDEX IF NOT EXISTS idx_share_events_event_name ON share_events(event_name)");
+
   if (!hasName) {
     // Rebuild the FTS data
     database.exec(`

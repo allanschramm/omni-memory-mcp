@@ -49,3 +49,7 @@
 ## 2024-05-20 - Eliminating N+1 Query in pruneMemories deletion
 **Learning:** Iteratively calling `stmt.run(id)` for thousands of records inside a transaction, while atomic, still incurs significant overhead in the Node.js/SQLite bridge.
 **Action:** Implemented chunked batch deletion using `DELETE FROM memories WHERE id IN (...)`. Created a `getDeleteInStatement` helper to cache prepared statements for varying batch sizes (using a 900-item chunk size to stay safely under SQLite's 999 parameter limit). This transforms O(N) database calls into O(N/900) calls, drastically reducing execution time for large-scale pruning operations.
+
+## 2025-05-19 - Adding Database Index on Log/Event Aggregations
+**Learning:** Performing a `GROUP BY` aggregation (e.g. `SELECT event_name, count(*) FROM share_events GROUP BY event_name`) in SQLite without an index on the grouping column causes a slow full table scan. As log or event tables like `share_events` naturally grow large over time, this becomes a noticeable bottleneck for stats and reporting queries.
+**Action:** Always add indexes (e.g. `CREATE INDEX IF NOT EXISTS`) to columns used in `GROUP BY` clauses for aggregation, especially on tables that constantly accumulate records. This applies the same logic previously used for optimizing `WHERE` clauses on `memories`.
