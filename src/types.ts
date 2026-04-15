@@ -72,6 +72,7 @@ export interface SearchMemoryArgs {
   limit?: number;
   enableAdvancedSyntax?: boolean;
   search_mode?: SearchMode;
+  include_content?: boolean;
 }
 
 export interface MemoryContextPackArgs {

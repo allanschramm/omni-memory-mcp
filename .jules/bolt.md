@@ -53,3 +53,7 @@
 ## 2025-05-19 - Adding Database Index on Log/Event Aggregations
 **Learning:** Performing a `GROUP BY` aggregation (e.g. `SELECT event_name, count(*) FROM share_events GROUP BY event_name`) in SQLite without an index on the grouping column causes a slow full table scan. As log or event tables like `share_events` naturally grow large over time, this becomes a noticeable bottleneck for stats and reporting queries.
 **Action:** Always add indexes (e.g. `CREATE INDEX IF NOT EXISTS`) to columns used in `GROUP BY` clauses for aggregation, especially on tables that constantly accumulate records. This applies the same logic previously used for optimizing `WHERE` clauses on `memories`.
+
+## 2025-05-20 - Eliminate Redundant Database Query by Propagating Content
+**Learning:** `createMemoryContextPack` previously relied on `getMemoriesByIds` to fetch the full text of `memories` after retrieving `SearchResult`s from `searchMemories`, because `searchMemories` historically excluded the `content` property for "Progressive Disclosure". This caused extra redundant batch database queries because `searchMemories` *already* fetched the `content` from the database in its SQL query before dropping it in `toSearchResult`.
+**Action:** Expose an `include_content?: boolean` flag on `SearchMemoryArgs` so that callers needing the full payload (like `createMemoryContextPack`) can retrieve it in one shot, reducing two database batch queries down to one and simplifying the logic.

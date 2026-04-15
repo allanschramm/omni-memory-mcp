@@ -509,13 +509,14 @@ function computeSearchScore(memory: Memory, normalizedQuery: string, baseScore: 
   return Math.round(score * 1000) / 1000;
 }
 
-function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode, queryRegexes: RegExp[], nowTime?: number): SearchResult {
+function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: string, baseScore: number, searchMode: SearchMode, queryRegexes: RegExp[], nowTime?: number, includeContent?: boolean): SearchResult {
   const matchedFields = getMatchedFields(memory, queryTokens, queryRegexes);
   const score = computeSearchScore(memory, normalizedQuery, baseScore, matchedFields, searchMode);
 
   return {
     id: memory.id,
     name: memory.name,
+    ...(includeContent ? { content: memory.content } : {}),
     area: memory.area,
     project: memory.project,
     tags: memory.tags,
@@ -582,6 +583,7 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
     project: args.project,
     limit: candidateLimit,
     search_mode: args.search_mode,
+    include_content: true,
   });
 
   const filteredResults = args.tag
@@ -592,22 +594,10 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
   let remainingTokens = Math.max(0, maxTokens - CONTEXT_PACK_HEADER_BUDGET);
   let truncated = filteredResults.length > maxMemories;
 
-  // Bolt: Performance Optimization
-  // Extract IDs to batch-fetch full memory records, avoiding N+1 query overhead.
-  // We fetch all filteredResults IDs at once since candidateLimit bounds this to at most 50,
-  // preventing skipped items from breaking the loop if they exceed token limits.
-  const idsToFetch = filteredResults.map(r => r.id);
-  const memoryMap = getMemoriesByIds(idsToFetch);
-
   for (const result of filteredResults) {
     if (selected.length >= maxMemories) {
       truncated = true;
       break;
-    }
-
-    const memory = memoryMap[result.id];
-    if (!memory) {
-      continue;
     }
 
     const remainingSlots = Math.max(1, maxMemories - selected.length);
@@ -622,14 +612,14 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
       break;
     }
 
-    const excerptResult = truncateExcerpt(memory.content, excerptBudget);
+    const excerptResult = truncateExcerpt(result.content!, excerptBudget);
     let consumedTokens = estimateTokenCount(excerptResult.excerpt) + CONTEXT_PACK_SECTION_BUDGET;
     let excerpt = excerptResult.excerpt;
     let excerptTruncated = excerptResult.truncated;
 
     if (consumedTokens > remainingTokens) {
       const fallbackBudget = Math.max(MIN_EXCERPT_TOKENS, remainingTokens - CONTEXT_PACK_SECTION_BUDGET);
-      const fallbackExcerpt = truncateExcerpt(memory.content, fallbackBudget);
+      const fallbackExcerpt = truncateExcerpt(result.content!, fallbackBudget);
       const fallbackTokens = estimateTokenCount(fallbackExcerpt.excerpt) + CONTEXT_PACK_SECTION_BUDGET;
 
       if (fallbackTokens > remainingTokens) {
@@ -643,11 +633,11 @@ export function createMemoryContextPack(args: MemoryContextPackArgs): MemoryCont
     }
 
     selected.push({
-      id: memory.id,
-      name: memory.name || null,
-      area: memory.area,
-      project: memory.project,
-      tags: memory.tags,
+      id: result.id,
+      name: result.name || null,
+      area: result.area,
+      project: result.project,
+      tags: result.tags,
       score: result.score,
       explanation: result.explanation,
       excerpt,
@@ -1030,7 +1020,7 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
       .map((row) => {
         const memory = rowToMemory(row, now);
         const baseScore = Math.abs(row.score ?? 0);
-        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes, now);
+        return toSearchResult(memory, queryTokens, normalizedQuery, baseScore, searchMode, queryRegexes, now, args.include_content);
       })
       .sort((left, right) => right.score - left.score);
   } catch (error) {
@@ -1092,7 +1082,7 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   const now = Date.now();
 
   return rows
-    .map((row) => toSearchResult(rowToMemory(row, now), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes, now))
+    .map((row) => toSearchResult(rowToMemory(row, now), queryTokens, normalizedQuery, 0.5, searchMode, queryRegexes, now, args.include_content))
     .sort((left, right) => right.score - left.score);
 }
 
