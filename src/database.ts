@@ -271,7 +271,10 @@ function rowToMemory(row: MemoryRow, nowTime?: number): Memory {
     content: row.content as string,
     area: (row.area as MemoryArea) || "general",
     project: row.project as string | null,
-    tags: JSON.parse((row.tags as string) || "[]"),
+    // Bolt: Performance Optimization
+    // Fast-path for empty tags to avoid expensive JSON.parse calls for common defaults.
+    // Drastically reduces GC overhead and CPU latency when returning large lists of records.
+    tags: (!row.tags || row.tags === "[]") ? [] : JSON.parse(row.tags as string),
     metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
     accessed_at: accessedAt,
     access_count: accessCount,
