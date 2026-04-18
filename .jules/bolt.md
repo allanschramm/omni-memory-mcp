@@ -65,3 +65,7 @@
 ## 2025-07-26 - Optimize JSON serialization for empty arrays
 **Learning:** Calling `JSON.stringify()` for empty arrays (`[]`) is surprisingly slow in V8 when done repeatedly during bulk inserts or updates. Using a fast-path ternary check like `(!tags || tags.length === 0) ? "[]" : JSON.stringify(tags)` bypasses the V8 JSON serializer entirely and is ~20x faster for common default cases.
 **Action:** When serializing JSON data for database insertions, especially when default empty arrays are common, use a direct string assignment fast-path. This complements the existing fast-path logic used for `JSON.parse`.
+
+## 2025-10-25 - Use combined RegExp for string matching instead of array .some()
+**Learning:** Testing a single combined regular expression using the `|` operator (e.g. `/(token1)|(token2)/i`) against a string is significantly faster and allocates less memory compared to iterating through an array of regular expressions using `.some(regex => regex.test(content))`. This overhead becomes pronounced when testing large text content against multiple tokens repeatedly during search map loops.
+**Action:** When filtering or scoring database rows against a list of tokens, combine the tokens into a single regular expression using `new RegExp(tokens.join('|'), 'i')` and test it once per field instead of running `.some()` with an array of individual regexes.
