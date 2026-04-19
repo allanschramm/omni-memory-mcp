@@ -285,10 +285,14 @@ function rowToMemory(row: MemoryRow, nowTime?: number): Memory {
 }
 
 function tokenizeQuery(query: string): string[] {
+  // Bolt: Performance Optimization
+  // Removed redundant `.map((token) => token.trim())` step.
+  // Since `split(/\s+/)` splits on whitespace, the resulting tokens
+  // are guaranteed not to contain whitespace. Removing the map step
+  // saves O(N) string allocations and function calls during query tokenization.
   return query
     .toLowerCase()
     .split(/\s+/)
-    .map((token) => token.trim())
     .filter(Boolean);
 }
 
