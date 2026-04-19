@@ -69,3 +69,11 @@
 ## 2025-10-25 - Use combined RegExp for string matching instead of array .some()
 **Learning:** Testing a single combined regular expression using the `|` operator (e.g. `/(token1)|(token2)/i`) against a string is significantly faster and allocates less memory compared to iterating through an array of regular expressions using `.some(regex => regex.test(content))`. This overhead becomes pronounced when testing large text content against multiple tokens repeatedly during search map loops.
 **Action:** When filtering or scoring database rows against a list of tokens, combine the tokens into a single regular expression using `new RegExp(tokens.join('|'), 'i')` and test it once per field instead of running `.some()` with an array of individual regexes.
+
+## 2025-10-26 - Avoid redundant trim after splitting by whitespace
+**Learning:** When using `String.prototype.split(/\s+/)`, the resulting array elements are guaranteed to not contain any whitespace, because the delimiter itself matches all contiguous whitespace blocks. Applying `.map(token => token.trim())` afterward is functionally a no-op that wastes CPU cycles on O(N) array iteration and new string allocations.
+**Action:** Remove `.map(token => token.trim())` from any string tokenization logic that already uses a whitespace regex split (like `tokenizeQuery`). This is a 100% safe micro-optimization that reduces GC pressure and execution time without altering semantics.
+
+## 2025-10-26 - Performance Optimization Anti-Pattern: `.some` vs `.join` for regex testing
+**Learning:** I attempted to optimize `getMatchedFields` by replacing `memory.tags.join(" ")` combined with `combinedRegex.test(tagsText)` with `memory.tags.some(tag => combinedRegex.test(tag))`. While this theoretically saves a string allocation, it breaks search semantics if the `combinedRegex` is intended to match patterns that span across different tags.
+**Action:** Do not blindly replace `.join()` with `.some()` when applying regular expressions across string arrays without strictly verifying that the regex evaluates tokens completely independently. Reverted the change to preserve correctness. Correctness > Speed.
