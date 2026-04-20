@@ -137,11 +137,6 @@ export interface AddMemoryResult {
   id: string;
 }
 
-export interface UpdateMemoryResult {
-  success: boolean;
-  changes: number;
-}
-
 export interface DeleteMemoryResult {
   success: boolean;
   changes: number;
