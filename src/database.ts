@@ -74,6 +74,8 @@ const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 let db: Database.Database | null = null;
 const inStatementCache = new Map<number, Database.Statement>();
 const deleteInStatementCache = new Map<number, Database.Statement>();
+let getMemoryStmt: Database.Statement | null = null;
+let updateAccessedStmt: Database.Statement | null = null;
 
 // Bolt: Performance Optimization
 // Static statement caches for highly frequent single-record operations
@@ -548,12 +550,10 @@ function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: 
 
 function getMemoryRecord(id: string): Memory | null {
   const database = getDatabase();
-
-  if (!getMemoryRecordStmt) {
-    getMemoryRecordStmt = database.prepare("SELECT * FROM memories WHERE id = ?");
+  if (!getMemoryStmt) {
+    getMemoryStmt = database.prepare("SELECT * FROM memories WHERE id = ?");
   }
-
-  const row = getMemoryRecordStmt.get(id) as MemoryRow | undefined;
+  const row = getMemoryStmt.get(id) as MemoryRow | undefined;
 
   return row ? rowToMemory(row) : null;
 }
@@ -767,11 +767,10 @@ export function getMemory(id: string): Memory | null {
   const database = getDatabase();
 
   // Track Active Forgetting / Progressive Disclosure metrics
-  if (!updateMemoryAccessStmt) {
-    updateMemoryAccessStmt = database.prepare("UPDATE memories SET accessed_at = datetime('now'), access_count = access_count + 1 WHERE id = ?");
+  if (!updateAccessedStmt) {
+    updateAccessedStmt = database.prepare("UPDATE memories SET accessed_at = datetime('now'), access_count = access_count + 1 WHERE id = ?");
   }
-  updateMemoryAccessStmt.run(id);
-
+  updateAccessedStmt.run(id);
   return getMemoryRecord(id);
 }
 
@@ -940,8 +939,8 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   }
 
   if (args.tag) {
-    sql += " AND tags LIKE ?";
-    params.push(`%"${args.tag}"%`);
+    sql += " AND tags LIKE ? ESCAPE '\\'";
+    params.push(`%"${escapeLikeWildcards(args.tag)}"%`);
   }
 
   sql += " ORDER BY created_at DESC LIMIT ?";
@@ -1161,9 +1160,8 @@ export function closeDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
-    getMemoryRecordStmt = null;
-    updateMemoryAccessStmt = null;
-    deleteMemoryStmt = null;
+    getMemoryStmt = null;
+    updateAccessedStmt = null;
     db.close();
     db = null;
   }
@@ -1176,9 +1174,8 @@ export function resetDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
-    getMemoryRecordStmt = null;
-    updateMemoryAccessStmt = null;
-    deleteMemoryStmt = null;
+    getMemoryStmt = null;
+    updateAccessedStmt = null;
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
