@@ -923,8 +923,8 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   }
 
   if (args.tag) {
-    sql += " AND tags LIKE ?";
-    params.push(`%"${args.tag}"%`);
+    sql += " AND tags LIKE ? ESCAPE '\\'";
+    params.push(`%"${escapeLikeWildcards(args.tag)}"%`);
   }
 
   sql += " ORDER BY created_at DESC LIMIT ?";
