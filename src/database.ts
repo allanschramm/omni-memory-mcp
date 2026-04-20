@@ -77,6 +77,12 @@ const deleteInStatementCache = new Map<number, Database.Statement>();
 let getMemoryStmt: Database.Statement | null = null;
 let updateAccessedStmt: Database.Statement | null = null;
 
+// Bolt: Performance Optimization
+// Static statement caches for highly frequent single-record operations
+let getMemoryRecordStmt: Database.Statement | null = null;
+let updateMemoryAccessStmt: Database.Statement | null = null;
+let deleteMemoryStmt: Database.Statement | null = null;
+
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
  * Caches statements by placeholder count to avoid redundant SQL compilation.
@@ -798,8 +804,12 @@ export function updateMemory(args: UpdateMemoryArgs): { changes: number } {
 
 export function deleteMemory(id: string): { changes: number } {
   const database = getDatabase();
-  const stmt = database.prepare("DELETE FROM memories WHERE id = ?");
-  const result = stmt.run(id);
+
+  if (!deleteMemoryStmt) {
+    deleteMemoryStmt = database.prepare("DELETE FROM memories WHERE id = ?");
+  }
+
+  const result = deleteMemoryStmt.run(id);
 
   return { changes: result.changes };
 }
