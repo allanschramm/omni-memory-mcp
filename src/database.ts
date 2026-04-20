@@ -75,6 +75,12 @@ let db: Database.Database | null = null;
 const inStatementCache = new Map<number, Database.Statement>();
 const deleteInStatementCache = new Map<number, Database.Statement>();
 
+// Bolt: Performance Optimization
+// Static statement caches for highly frequent single-record operations
+let getMemoryRecordStmt: Database.Statement | null = null;
+let updateMemoryAccessStmt: Database.Statement | null = null;
+let deleteMemoryStmt: Database.Statement | null = null;
+
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
  * Caches statements by placeholder count to avoid redundant SQL compilation.
@@ -542,8 +548,12 @@ function toSearchResult(memory: Memory, queryTokens: string[], normalizedQuery: 
 
 function getMemoryRecord(id: string): Memory | null {
   const database = getDatabase();
-  const stmt = database.prepare("SELECT * FROM memories WHERE id = ?");
-  const row = stmt.get(id) as MemoryRow | undefined;
+
+  if (!getMemoryRecordStmt) {
+    getMemoryRecordStmt = database.prepare("SELECT * FROM memories WHERE id = ?");
+  }
+
+  const row = getMemoryRecordStmt.get(id) as MemoryRow | undefined;
 
   return row ? rowToMemory(row) : null;
 }
@@ -757,8 +767,11 @@ export function getMemory(id: string): Memory | null {
   const database = getDatabase();
 
   // Track Active Forgetting / Progressive Disclosure metrics
-  const updateStmt = database.prepare("UPDATE memories SET accessed_at = datetime('now'), access_count = access_count + 1 WHERE id = ?");
-  updateStmt.run(id);
+  if (!updateMemoryAccessStmt) {
+    updateMemoryAccessStmt = database.prepare("UPDATE memories SET accessed_at = datetime('now'), access_count = access_count + 1 WHERE id = ?");
+  }
+  updateMemoryAccessStmt.run(id);
+
   return getMemoryRecord(id);
 }
 
@@ -792,8 +805,12 @@ export function updateMemory(args: UpdateMemoryArgs): { changes: number } {
 
 export function deleteMemory(id: string): { changes: number } {
   const database = getDatabase();
-  const stmt = database.prepare("DELETE FROM memories WHERE id = ?");
-  const result = stmt.run(id);
+
+  if (!deleteMemoryStmt) {
+    deleteMemoryStmt = database.prepare("DELETE FROM memories WHERE id = ?");
+  }
+
+  const result = deleteMemoryStmt.run(id);
 
   return { changes: result.changes };
 }
@@ -1144,6 +1161,9 @@ export function closeDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    getMemoryRecordStmt = null;
+    updateMemoryAccessStmt = null;
+    deleteMemoryStmt = null;
     db.close();
     db = null;
   }
@@ -1156,6 +1176,9 @@ export function resetDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    getMemoryRecordStmt = null;
+    updateMemoryAccessStmt = null;
+    deleteMemoryStmt = null;
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
