@@ -82,6 +82,9 @@ let updateAccessedStmt: Database.Statement | null = null;
 let getMemoryRecordStmt: Database.Statement | null = null;
 let updateMemoryAccessStmt: Database.Statement | null = null;
 let deleteMemoryStmt: Database.Statement | null = null;
+let addMemoryStmt: Database.Statement | null = null;
+let updateMemoryStmt: Database.Statement | null = null;
+let logShareEventStmt: Database.Statement | null = null;
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -234,12 +237,14 @@ function logShareEvent(
   eventName: string,
   details: { memoryId?: string; matchedName?: string; project?: string | null } = {}
 ): void {
-  const stmt = database.prepare(`
-    INSERT INTO share_events (id, event_name, memory_id, matched_name, project)
-    VALUES (?, ?, ?, ?, ?)
-  `);
+  if (!logShareEventStmt) {
+    logShareEventStmt = database.prepare(`
+      INSERT INTO share_events (id, event_name, memory_id, matched_name, project)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+  }
 
-  stmt.run(
+  logShareEventStmt.run(
     uuidv4(),
     eventName,
     details.memoryId || null,
@@ -753,12 +758,14 @@ export function addMemory(args: AddMemoryArgs): { id: string } {
   const name = args.name || null;
   const metadata = serializeMetadata(args.metadata);
 
-  const stmt = database.prepare(`
-    INSERT INTO memories (id, name, content, area, project, tags, metadata)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `);
+  if (!addMemoryStmt) {
+    addMemoryStmt = database.prepare(`
+      INSERT INTO memories (id, name, content, area, project, tags, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+  }
 
-  stmt.run(id, name, args.content, area, project, tags, metadata);
+  addMemoryStmt.run(id, name, args.content, area, project, tags, metadata);
 
   return { id };
 }
@@ -791,13 +798,15 @@ export function updateMemory(args: UpdateMemoryArgs): { changes: number } {
   const tags = serializeTags(args.tags ?? existing.tags);
   const metadata = serializeMetadata(args.metadata !== undefined ? args.metadata : existing.metadata);
 
-  const stmt = database.prepare(`
-    UPDATE memories 
-    SET name = ?, content = ?, area = ?, project = ?, tags = ?, metadata = ?, updated_at = datetime('now')
-    WHERE id = ?
-  `);
+  if (!updateMemoryStmt) {
+    updateMemoryStmt = database.prepare(`
+      UPDATE memories
+      SET name = ?, content = ?, area = ?, project = ?, tags = ?, metadata = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `);
+  }
 
-  const result = stmt.run(name, content, area, project, tags, metadata, args.id);
+  const result = updateMemoryStmt.run(name, content, area, project, tags, metadata, args.id);
 
   return { changes: result.changes };
 }
@@ -1162,6 +1171,12 @@ export function closeDatabase(): void {
     deleteInStatementCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
+    getMemoryRecordStmt = null;
+    updateMemoryAccessStmt = null;
+    deleteMemoryStmt = null;
+    addMemoryStmt = null;
+    updateMemoryStmt = null;
+    logShareEventStmt = null;
     db.close();
     db = null;
   }
@@ -1176,6 +1191,12 @@ export function resetDatabase(): void {
     deleteInStatementCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
+    getMemoryRecordStmt = null;
+    updateMemoryAccessStmt = null;
+    deleteMemoryStmt = null;
+    addMemoryStmt = null;
+    updateMemoryStmt = null;
+    logShareEventStmt = null;
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
