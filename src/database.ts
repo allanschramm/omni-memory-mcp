@@ -746,7 +746,15 @@ function serializeMetadata(metadata?: Record<string, unknown> | null): string | 
   if (!metadata) {
     return null;
   }
-  return JSON.stringify(metadata);
+  // Bolt: Performance Optimization
+  // Fast-path for empty metadata objects to avoid expensive JSON.stringify calls.
+  // Using for..in loop avoids allocating an array via Object.keys() and works
+  // safely with both {} and Object.create(null).
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for (const _ in metadata) {
+    return JSON.stringify(metadata);
+  }
+  return "{}";
 }
 
 export function addMemory(args: AddMemoryArgs): { id: string } {
