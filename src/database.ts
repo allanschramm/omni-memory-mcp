@@ -85,6 +85,11 @@ let deleteMemoryStmt: Database.Statement | null = null;
 let addMemoryStmt: Database.Statement | null = null;
 let updateMemoryStmt: Database.Statement | null = null;
 let logShareEventStmt: Database.Statement | null = null;
+let getStatsTotalStmt: Database.Statement | null = null;
+let getStatsByAreaStmt: Database.Statement | null = null;
+let getStatsByProjectStmt: Database.Statement | null = null;
+let getStatsEventCountsStmt: Database.Statement | null = null;
+let pruneMemoriesStmt: Database.Statement | null = null;
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -973,22 +978,26 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
 export function getStats(): MemoryStats {
   const database = getDatabase();
 
-  const totalRow = database.prepare("SELECT count(*) as c FROM memories").get() as { c?: number } | undefined;
+  if (!getStatsTotalStmt) getStatsTotalStmt = database.prepare("SELECT count(*) as c FROM memories");
+  const totalRow = getStatsTotalStmt.get() as { c?: number } | undefined;
   const total = totalRow?.c || 0;
 
-  const byAreaRows = database.prepare("SELECT area, count(*) as c FROM memories GROUP BY area").all() as Array<{ area: string | null; c: number }>;
+  if (!getStatsByAreaStmt) getStatsByAreaStmt = database.prepare("SELECT area, count(*) as c FROM memories GROUP BY area");
+  const byAreaRows = getStatsByAreaStmt.all() as Array<{ area: string | null; c: number }>;
   const by_area = byAreaRows.reduce((acc, row) => {
     acc[row.area || "general"] = row.c;
     return acc;
   }, Object.create(null) as Record<string, number>);
 
-  const byProjectRows = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project").all() as Array<{ project: string | null; c: number }>;
+  if (!getStatsByProjectStmt) getStatsByProjectStmt = database.prepare("SELECT project, count(*) as c FROM memories GROUP BY project");
+  const byProjectRows = getStatsByProjectStmt.all() as Array<{ project: string | null; c: number }>;
   const by_project = byProjectRows.reduce((acc, row) => {
     acc[row.project || "unassigned"] = row.c;
     return acc;
   }, Object.create(null) as Record<string, number>);
 
-  const eventRows = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name").all() as Array<{
+  if (!getStatsEventCountsStmt) getStatsEventCountsStmt = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name");
+  const eventRows = getStatsEventCountsStmt.all() as Array<{
     event_name: string;
     c: number;
   }>;
@@ -1138,7 +1147,8 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   // Fetch only the minimal required columns instead of `SELECT *`
   // to avoid loading large `content` blobs and forcing `rowToMemory`
   // to run `JSON.parse` thousands of times for discarded rows.
-  const stmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
+  if (!pruneMemoriesStmt) pruneMemoriesStmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
+  const stmt = pruneMemoriesStmt;
   const iterator = stmt.iterate() as IterableIterator<{ id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }>;
 
   const toPrune: { id: string; name: string | null }[] = [];
@@ -1185,6 +1195,11 @@ export function closeDatabase(): void {
     addMemoryStmt = null;
     updateMemoryStmt = null;
     logShareEventStmt = null;
+    getStatsTotalStmt = null;
+    getStatsByAreaStmt = null;
+    getStatsByProjectStmt = null;
+    getStatsEventCountsStmt = null;
+    pruneMemoriesStmt = null;
     db.close();
     db = null;
   }
@@ -1205,6 +1220,11 @@ export function resetDatabase(): void {
     addMemoryStmt = null;
     updateMemoryStmt = null;
     logShareEventStmt = null;
+    getStatsTotalStmt = null;
+    getStatsByAreaStmt = null;
+    getStatsByProjectStmt = null;
+    getStatsEventCountsStmt = null;
+    pruneMemoriesStmt = null;
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
