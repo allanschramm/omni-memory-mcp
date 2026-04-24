@@ -86,3 +86,7 @@
 ## 2025-10-27 - Fast-path for empty objects in serializeMetadata
 **Learning:** `JSON.stringify()` on empty objects (e.g. `{}` or `Object.create(null)`) adds surprisingly high CPU overhead when done repeatedly, similar to `JSON.stringify([])`. Because tools often insert or modify memory rows with empty or missing metadata, bypassing the V8 JSON serialization pipeline for empty objects results in a noticeable performance win.
 **Action:** Implemented a fast-path in `serializeMetadata` that uses a `for...in` loop to quickly check if an object is empty without allocating an array (like `Object.keys()` would). This is ~4-6x faster than `JSON.stringify({})` while maintaining robustness against prototype pollution and working with prototype-less objects.
+
+## 2025-02-06 - SQL RETURNING clause overhead
+**Learning:** In `better-sqlite3`, combining an `UPDATE` and `SELECT` operation into a single query using SQLite's `RETURNING *` clause can unexpectedly degrade performance compared to executing a separate `UPDATE` and `SELECT` sequentially.
+**Action:** Always benchmark `RETURNING` clauses before adopting them for optimization.
