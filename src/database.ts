@@ -85,11 +85,13 @@ let deleteMemoryStmt: Database.Statement | null = null;
 let addMemoryStmt: Database.Statement | null = null;
 let updateMemoryStmt: Database.Statement | null = null;
 let logShareEventStmt: Database.Statement | null = null;
+let pruneMemoriesStmt: Database.Statement | null = null;
+let findMemoriesNullProjectStmt: Database.Statement | null = null;
+let findMemoriesWithProjectStmt: Database.Statement | null = null;
 let getStatsTotalStmt: Database.Statement | null = null;
 let getStatsByAreaStmt: Database.Statement | null = null;
 let getStatsByProjectStmt: Database.Statement | null = null;
-let getStatsEventCountsStmt: Database.Statement | null = null;
-let pruneMemoriesStmt: Database.Statement | null = null;
+let getStatsEventsStmt: Database.Statement | null = null;
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -700,17 +702,21 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
     return [];
   }
 
-  let sql = "SELECT id, name FROM memories WHERE name IS NOT NULL";
+  let stmt: Database.Statement;
   const params: Array<string | null> = [];
 
   if (project === undefined || project === null) {
-    sql += " AND project IS NULL";
+    if (!findMemoriesNullProjectStmt) {
+      findMemoriesNullProjectStmt = database.prepare("SELECT id, name FROM memories WHERE name IS NOT NULL AND project IS NULL");
+    }
+    stmt = findMemoriesNullProjectStmt;
   } else {
-    sql += " AND project = ?";
+    if (!findMemoriesWithProjectStmt) {
+      findMemoriesWithProjectStmt = database.prepare("SELECT id, name FROM memories WHERE name IS NOT NULL AND project = ?");
+    }
+    stmt = findMemoriesWithProjectStmt;
     params.push(project);
   }
-
-  const stmt = database.prepare(sql);
   const iterator = stmt.iterate(...params) as IterableIterator<{ id: string; name: string | null }>;
 
   const matchingIds: string[] = [];
@@ -996,8 +1002,8 @@ export function getStats(): MemoryStats {
     return acc;
   }, Object.create(null) as Record<string, number>);
 
-  if (!getStatsEventCountsStmt) getStatsEventCountsStmt = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name");
-  const eventRows = getStatsEventCountsStmt.all() as Array<{
+  if (!getStatsEventsStmt) getStatsEventsStmt = database.prepare("SELECT event_name, count(*) as c FROM share_events GROUP BY event_name");
+  const eventRows = getStatsEventsStmt.all() as Array<{
     event_name: string;
     c: number;
   }>;
@@ -1147,7 +1153,9 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
   // Fetch only the minimal required columns instead of `SELECT *`
   // to avoid loading large `content` blobs and forcing `rowToMemory`
   // to run `JSON.parse` thousands of times for discarded rows.
-  if (!pruneMemoriesStmt) pruneMemoriesStmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
+  if (!pruneMemoriesStmt) {
+    pruneMemoriesStmt = database.prepare("SELECT id, name, created_at, accessed_at, access_count FROM memories");
+  }
   const stmt = pruneMemoriesStmt;
   const iterator = stmt.iterate() as IterableIterator<{ id: string; name: string | null; created_at: string; accessed_at: string | null; access_count: number }>;
 
@@ -1195,11 +1203,13 @@ export function closeDatabase(): void {
     addMemoryStmt = null;
     updateMemoryStmt = null;
     logShareEventStmt = null;
+    pruneMemoriesStmt = null;
+    findMemoriesNullProjectStmt = null;
+    findMemoriesWithProjectStmt = null;
     getStatsTotalStmt = null;
     getStatsByAreaStmt = null;
     getStatsByProjectStmt = null;
-    getStatsEventCountsStmt = null;
-    pruneMemoriesStmt = null;
+    getStatsEventsStmt = null;
     db.close();
     db = null;
   }
@@ -1220,11 +1230,13 @@ export function resetDatabase(): void {
     addMemoryStmt = null;
     updateMemoryStmt = null;
     logShareEventStmt = null;
+    pruneMemoriesStmt = null;
+    findMemoriesNullProjectStmt = null;
+    findMemoriesWithProjectStmt = null;
     getStatsTotalStmt = null;
     getStatsByAreaStmt = null;
     getStatsByProjectStmt = null;
-    getStatsEventCountsStmt = null;
-    pruneMemoriesStmt = null;
+    getStatsEventsStmt = null;
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
