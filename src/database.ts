@@ -295,7 +295,7 @@ function rowToMemory(row: MemoryRow, nowTime?: number): Memory {
     // Fast-path for empty tags and metadata to avoid expensive JSON.parse calls for common defaults.
     // Drastically reduces GC overhead and CPU latency when returning large lists of records.
     tags: (!row.tags || row.tags === "[]") ? [] : JSON.parse(row.tags as string),
-    metadata: (!row.metadata || row.metadata === "null") ? null : (row.metadata === "{}" ? {} : JSON.parse(row.metadata as string)),
+    metadata: row.metadata ? (row.metadata === "{}" ? {} : JSON.parse(row.metadata as string)) : null,
     accessed_at: accessedAt,
     access_count: accessCount,
     created_at: createdAt,
