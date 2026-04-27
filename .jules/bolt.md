@@ -90,3 +90,7 @@
 ## 2025-02-06 - SQL RETURNING clause overhead
 **Learning:** In `better-sqlite3`, combining an `UPDATE` and `SELECT` operation into a single query using SQLite's `RETURNING *` clause can unexpectedly degrade performance compared to executing a separate `UPDATE` and `SELECT` sequentially.
 **Action:** Always benchmark `RETURNING` clauses before adopting them for optimization.
+
+## 2024-04-27 - Fast-path empty metadata JSON object
+**Learning:** Calling `JSON.parse` thousands of times for discarded or default rows containing `{}` is computationally expensive.
+**Action:** When serializing objects that frequently default to empty values (e.g., `metadata` defaulting to `{}`), use a fast-path ternary check (like `(!metadata || metadata === '{}') ? {} : JSON.parse(metadata)`) to bypass `JSON.parse` entirely. This drastically reduces CPU overhead and improves performance during bulk read operations.
