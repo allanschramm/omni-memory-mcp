@@ -94,3 +94,10 @@
 ## 2024-04-27 - Fast-path empty metadata JSON object
 **Learning:** Calling `JSON.parse` thousands of times for discarded or default rows containing `{}` is computationally expensive.
 **Action:** When serializing objects that frequently default to empty values (e.g., `metadata` defaulting to `{}`), use a fast-path ternary check (like `(!metadata || metadata === '{}') ? {} : JSON.parse(metadata)`) to bypass `JSON.parse` entirely. This drastically reduces CPU overhead and improves performance during bulk read operations.
+## 2024-05-15 - JSON Parsing Fast Path for Common Database Defaults
+**Learning:** `JSON.parse` is an expensive operation due to V8's internal pipeline. When processing large numbers of rows from a database (e.g., retrieving memory records), fields that commonly contain default values like `"{}"` or `"[]"` incur massive CPU and Garbage Collection overhead when parsed blindly. We previously had a fast-path for `tags` but not for `metadata`.
+**Action:** Always intercept common JSON default strings (like `"{}"`, `"[]"`, and `"null"`) with a ternary check (e.g., `value === "{}" ? {} : JSON.parse(value)`) before parsing. This bypasses the JSON parser entirely and significantly speeds up list and search query processing times.
+
+## 2024-04-25 - Fast-path JSON.parse for empty metadata objects
+**Learning:** When reading frequently accessed JSON strings from the database that often contain default or empty values (like `metadata` being `"{}"`), using `JSON.parse` adds significant overhead and Garbage Collection pressure.
+**Action:** Use a fast-path conditional check (e.g., `row.metadata === "{}" ? {} : JSON.parse(row.metadata)`) to bypass the V8 JSON parser entirely, drastically reducing CPU latency for common default cases.
