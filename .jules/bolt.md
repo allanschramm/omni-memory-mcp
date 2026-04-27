@@ -90,6 +90,9 @@
 ## 2025-02-06 - SQL RETURNING clause overhead
 **Learning:** In `better-sqlite3`, combining an `UPDATE` and `SELECT` operation into a single query using SQLite's `RETURNING *` clause can unexpectedly degrade performance compared to executing a separate `UPDATE` and `SELECT` sequentially.
 **Action:** Always benchmark `RETURNING` clauses before adopting them for optimization.
+## 2024-05-15 - JSON Parsing Fast Path for Common Database Defaults
+**Learning:** `JSON.parse` is an expensive operation due to V8's internal pipeline. When processing large numbers of rows from a database (e.g., retrieving memory records), fields that commonly contain default values like `"{}"` or `"[]"` incur massive CPU and Garbage Collection overhead when parsed blindly. We previously had a fast-path for `tags` but not for `metadata`.
+**Action:** Always intercept common JSON default strings (like `"{}"`, `"[]"`, and `"null"`) with a ternary check (e.g., `value === "{}" ? {} : JSON.parse(value)`) before parsing. This bypasses the JSON parser entirely and significantly speeds up list and search query processing times.
 
 ## 2024-04-25 - Fast-path JSON.parse for empty metadata objects
 **Learning:** When reading frequently accessed JSON strings from the database that often contain default or empty values (like `metadata` being `"{}"`), using `JSON.parse` adds significant overhead and Garbage Collection pressure.
