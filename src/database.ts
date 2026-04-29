@@ -138,6 +138,10 @@ export function getDatabase(): Database.Database {
 
   db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
+
+  // Register custom functions for optimized searching
+  db.function("normalize_name", (name: string | null) => normalizeMemoryName(name));
+
   initializeSchema(db);
   return db;
 }
@@ -703,47 +707,28 @@ function findMemoriesByNormalizedName(matchName: string, project: string | null 
   }
 
   let stmt: Database.Statement;
-  const params: Array<string | null> = [];
+  const params: Array<string | null> = [normalizedTarget];
 
   if (project === undefined || project === null) {
     if (!findMemoriesNullProjectStmt) {
-      findMemoriesNullProjectStmt = database.prepare("SELECT id, name FROM memories WHERE name IS NOT NULL AND project IS NULL");
+      findMemoriesNullProjectStmt = database.prepare(
+        "SELECT * FROM memories WHERE normalize_name(name) = ? AND project IS NULL"
+      );
     }
     stmt = findMemoriesNullProjectStmt;
   } else {
     if (!findMemoriesWithProjectStmt) {
-      findMemoriesWithProjectStmt = database.prepare("SELECT id, name FROM memories WHERE name IS NOT NULL AND project = ?");
+      findMemoriesWithProjectStmt = database.prepare(
+        "SELECT * FROM memories WHERE normalize_name(name) = ? AND project = ?"
+      );
     }
     stmt = findMemoriesWithProjectStmt;
     params.push(project);
   }
-  const iterator = stmt.iterate(...params) as IterableIterator<{ id: string; name: string | null }>;
 
-  const matchingIds: string[] = [];
-  for (const row of iterator) {
-    if (normalizeMemoryName(row.name) === normalizedTarget) {
-      matchingIds.push(row.id);
-    }
-  }
-
-  if (matchingIds.length === 0) {
-    return [];
-  }
-
-  // Performance optimization: we fetch only the ID and Name first, so we can do the exact
-  // normalized string match in JS without parsing JSON tags and metadata for thousands of rows.
-  // Then we fetch the full rows only for the matched IDs.
-  // Chunking to avoid SQLite parameter limit (999)
-  const chunkSize = 900;
-  const fullRows: MemoryRow[] = [];
-  for (let i = 0; i < matchingIds.length; i += chunkSize) {
-    const chunk = matchingIds.slice(i, i + chunkSize);
-    const chunkRows = getInStatement(database, chunk.length).all(...chunk) as MemoryRow[];
-    fullRows.push(...chunkRows);
-  }
-
+  const rows = stmt.all(...params) as MemoryRow[];
   const now = Date.now();
-  return fullRows.map(row => rowToMemory(row, now));
+  return rows.map((row) => rowToMemory(row, now));
 }
 
 function serializeTags(tags?: string[]): string {

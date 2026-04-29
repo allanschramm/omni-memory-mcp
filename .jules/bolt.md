@@ -101,3 +101,6 @@
 ## 2024-04-25 - Fast-path JSON.parse for empty metadata objects
 **Learning:** When reading frequently accessed JSON strings from the database that often contain default or empty values (like `metadata` being `"{}"`), using `JSON.parse` adds significant overhead and Garbage Collection pressure.
 **Action:** Use a fast-path conditional check (e.g., `row.metadata === "{}" ? {} : JSON.parse(row.metadata)`) to bypass the V8 JSON parser entirely, drastically reducing CPU latency for common default cases.
+## 2026-04-28 - Optimize Normalized Search via SQLite UDFs
+**Learning:** In `better-sqlite3`, N+1 query patterns involving complex string filtering (like normalization) can be eliminated by registering the JavaScript filtering logic as a custom SQLite function via `db.function()`. This offloads filtering to the database engine, reducing I/O, database roundtrips, and JS memory overhead.
+**Action:** Always check if complex filtering loops in JS can be replaced by a custom SQLite function, especially when the current implementation requires multiple subsequent queries to fetch full records for filtered IDs.
