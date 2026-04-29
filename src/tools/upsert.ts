@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { upsertMemory } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {
   name: z.string().optional().describe("Summary or title of the memory"),
@@ -85,14 +86,6 @@ export const handler: ToolCallback<typeof schema> = async ({
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to upsert memory: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to upsert memory", error);
   }
 };

@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { getMemory } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError, makeErrorResponse } from "./utils.js";
 
 export const schema = {
   id: z.string().describe("The memory ID to retrieve"),
@@ -15,15 +16,7 @@ export const handler: ToolCallback<typeof schema> = async ({ id }) => {
     const memory = getMemory(id);
 
     if (!memory) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Memory not found: ${id}`,
-          },
-        ],
-        isError: true,
-      };
+      return makeErrorResponse(`Memory not found: ${id}`);
     }
 
     const tags = memory.tags.length > 0 ? `\nTags: ${memory.tags.join(", ")}` : "";
@@ -38,14 +31,6 @@ export const handler: ToolCallback<typeof schema> = async ({ id }) => {
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to get memory: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to get memory", error);
   }
 };

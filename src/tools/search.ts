@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { searchMemories } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {
   query: z.string().describe("Search query"),
@@ -49,14 +50,6 @@ export const handler: ToolCallback<typeof schema> = async ({ query, area, projec
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Search failed: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Search failed", error);
   }
 };

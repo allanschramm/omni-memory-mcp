@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { pruneMemories } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {
     threshold_score: z.number().optional().describe("Score threshold below which memories are pruned (default 0)"),
@@ -24,14 +25,6 @@ export const handler: ToolCallback<typeof schema> = async ({ threshold_score, dr
             ],
         };
     } catch (error) {
-        return {
-            content: [
-                {
-                    type: "text" as const,
-                    text: `Failed to prune memories: ${error instanceof Error ? error.message : String(error)}`,
-                },
-            ],
-            isError: true,
-        };
+        return handleToolError("Failed to prune memories", error);
     }
 };

@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { createMemoryContextPack } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {
   query: z.string().describe("Search query used to assemble the context pack"),
@@ -62,14 +63,6 @@ export const handler: ToolCallback<typeof schema> = async ({ query, area, projec
       structuredContent: result as unknown as Record<string, unknown>,
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to build context pack: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to build context pack", error);
   }
 };

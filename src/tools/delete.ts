@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { deleteMemory, getMemory } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError, makeErrorResponse } from "./utils.js";
 
 export const schema = {
   id: z.string().describe("The memory ID to delete"),
@@ -15,15 +16,7 @@ export const handler: ToolCallback<typeof schema> = async ({ id }) => {
     // Check if memory exists first
     const existing = getMemory(id);
     if (!existing) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Memory not found: ${id}`,
-          },
-        ],
-        isError: true,
-      };
+      return makeErrorResponse(`Memory not found: ${id}`);
     }
 
     const result = deleteMemory(id);
@@ -37,14 +30,6 @@ export const handler: ToolCallback<typeof schema> = async ({ id }) => {
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to delete memory: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to delete memory", error);
   }
 };
