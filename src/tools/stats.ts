@@ -4,6 +4,7 @@
 
 import { getStats } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {};
 
@@ -53,14 +54,6 @@ ${eventList || "  (None)"}`;
             ],
         };
     } catch (error) {
-        return {
-            content: [
-                {
-                    type: "text" as const,
-                    text: `Failed to retrieve stats: ${error instanceof Error ? error.message : String(error)}`,
-                },
-            ],
-            isError: true,
-        };
+        return handleToolError("Failed to retrieve stats", error);
     }
 };

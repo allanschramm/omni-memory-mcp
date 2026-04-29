@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { updateMemory, getMemory } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError, makeErrorResponse } from "./utils.js";
 
 export const schema = {
   id: z.string().describe("The memory ID to update"),
@@ -21,15 +22,7 @@ export const handler: ToolCallback<typeof schema> = async ({ id, name, content, 
     // Check if memory exists
     const existing = getMemory(id);
     if (!existing) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Memory not found: ${id}`,
-          },
-        ],
-        isError: true,
-      };
+      return makeErrorResponse(`Memory not found: ${id}`);
     }
 
     const result = updateMemory({ id, name, content, area, project, tags, metadata });
@@ -54,14 +47,6 @@ export const handler: ToolCallback<typeof schema> = async ({ id, name, content, 
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to update memory: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to update memory", error);
   }
 };

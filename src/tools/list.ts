@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { listMemories } from "../database.js";
 import type { ToolCallback } from "./index.js";
+import { handleToolError } from "./utils.js";
 
 export const schema = {
   area: z.enum(["general", "snippets", "solutions", "preferences"]).optional().describe("Filter by area"),
@@ -52,14 +53,6 @@ export const handler: ToolCallback<typeof schema> = async ({ area, project, tag,
       ],
     };
   } catch (error) {
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: `Failed to list memories: ${error instanceof Error ? error.message : String(error)}`,
-        },
-      ],
-      isError: true,
-    };
+    return handleToolError("Failed to list memories", error);
   }
 };
