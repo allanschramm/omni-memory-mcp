@@ -74,6 +74,7 @@ const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 let db: Database.Database | null = null;
 const inStatementCache = new Map<number, Database.Statement>();
 const deleteInStatementCache = new Map<number, Database.Statement>();
+const dynamicStatementCache = new Map<string, Database.Statement>();
 let getMemoryStmt: Database.Statement | null = null;
 let updateAccessedStmt: Database.Statement | null = null;
 
@@ -117,6 +118,19 @@ function getDeleteInStatement(database: Database.Database, count: number): Datab
     const placeholders = Array(count).fill("?").join(",");
     stmt = database.prepare(`DELETE FROM memories WHERE id IN (${placeholders})`);
     deleteInStatementCache.set(count, stmt);
+  }
+  return stmt;
+}
+
+/**
+ * Returns a prepared statement for dynamically constructed SQL queries.
+ * Caches statements by exact SQL string to avoid redundant compilation overhead.
+ */
+function getDynamicStatement(database: Database.Database, sql: string): Database.Statement {
+  let stmt = dynamicStatementCache.get(sql);
+  if (!stmt) {
+    stmt = database.prepare(sql);
+    dynamicStatementCache.set(sql, stmt);
   }
   return stmt;
 }
@@ -959,7 +973,7 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
 
-  const stmt = database.prepare(sql);
+  const stmt = getDynamicStatement(database, sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
   const now = Date.now();
@@ -1052,7 +1066,7 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
   params.push(limit);
 
   try {
-    const stmt = database.prepare(sql);
+    const stmt = getDynamicStatement(database, sql);
     const rows = stmt.all(...params) as Array<MemoryRow & { score?: number }>;
 
     const queryTokens = tokenizeQuery(args.query);
@@ -1117,7 +1131,7 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
 
-  const stmt = database.prepare(sql);
+  const stmt = getDynamicStatement(database, sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
   const queryTokens = tokenizeQuery(args.query);
@@ -1180,6 +1194,7 @@ export function closeDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    dynamicStatementCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
     getMemoryRecordStmt = null;
@@ -1207,6 +1222,7 @@ export function resetDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    dynamicStatementCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
     getMemoryRecordStmt = null;

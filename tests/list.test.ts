@@ -116,6 +116,8 @@ describe("memory_list tool", () => {
         content: "Content",
         area: "general",
       });
+      // Delay to ensure distinct created_at timestamps due to 1-second resolution in sqlite's datetime('now')
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     const response = await toolModule.handler({ limit: 2 });
@@ -127,7 +129,7 @@ describe("memory_list tool", () => {
     expect(text).toContain("Memory 5");
     expect(text).toContain("Memory 4");
     expect(text).not.toContain("Memory 3");
-  });
+  }, 10000);
 
   it("returns no memories found message without filters", async () => {
     const response = await toolModule.handler({});
