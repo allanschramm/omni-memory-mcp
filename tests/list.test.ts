@@ -111,11 +111,13 @@ describe("memory_list tool", () => {
 
   it("respects the limit parameter", async () => {
     for (let i = 1; i <= 5; i++) {
-      dbModule.addMemory({
+      const { id } = dbModule.addMemory({
         name: `Memory ${i}`,
         content: "Content",
         area: "general",
       });
+      // Force unique timestamps for deterministic ordering
+      dbModule.getDatabase().prepare("UPDATE memories SET created_at = datetime('now', ?) WHERE id = ?").run(`+${i} seconds`, id);
     }
 
     const response = await toolModule.handler({ limit: 2 });
