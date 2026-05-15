@@ -104,3 +104,6 @@
 ## 2026-04-28 - Optimize Normalized Search via SQLite UDFs
 **Learning:** In `better-sqlite3`, N+1 query patterns involving complex string filtering (like normalization) can be eliminated by registering the JavaScript filtering logic as a custom SQLite function via `db.function()`. This offloads filtering to the database engine, reducing I/O, database roundtrips, and JS memory overhead.
 **Action:** Always check if complex filtering loops in JS can be replaced by a custom SQLite function, especially when the current implementation requires multiple subsequent queries to fetch full records for filtered IDs.
+## 2025-10-28 - Static Statement Caching for listMemories Dynamic Queries
+**Learning:** Functions that construct `better-sqlite3` statements dynamically based on a very small set of possible boolean conditions (like `listMemories` which only toggles `area`, `project`, and `tag` filters) can still benefit from static statement caching. Building a cache key based on the boolean state of the parameters (e.g., `hasArea-hasProject-hasTag`) allows caching the finite permutations of the dynamically constructed SQL.
+**Action:** Use a `Map` to statically cache dynamically built statements when the number of parameter permutations is small, drastically reducing compilation overhead compared to calling `database.prepare(sql)` on every invocation.

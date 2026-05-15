@@ -74,6 +74,7 @@ const { dataDir: DATA_DIR, dbPath: DB_PATH } = resolveStoragePaths();
 let db: Database.Database | null = null;
 const inStatementCache = new Map<number, Database.Statement>();
 const deleteInStatementCache = new Map<number, Database.Statement>();
+const listMemoriesStmtCache = new Map<string, Database.Statement>();
 let getMemoryStmt: Database.Statement | null = null;
 let updateAccessedStmt: Database.Statement | null = null;
 
@@ -936,30 +937,53 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   const limit = Math.min(args.limit || 50, 100);
 
   // Bolt: Performance Optimization
-  // Use explicit column selection instead of SELECT * to avoid loading large 'content' strings into memory.
-  // This supports 'Progressive Disclosure' and avoids massive string allocations since list tools don't need the full text.
-  let sql = "SELECT id, name, '' as content, area, project, tags, metadata, accessed_at, access_count, created_at, updated_at FROM memories WHERE 1=1";
+  // Static caching of statements based on combination of dynamic arguments.
+  const hasArea = !!args.area;
+  const hasProject = !!args.project;
+  const hasTag = !!args.tag;
+  const cacheKey = `${hasArea}-${hasProject}-${hasTag}`;
+
+  let stmt = listMemoriesStmtCache.get(cacheKey);
+
+  if (!stmt) {
+    // Bolt: Performance Optimization
+    // Use explicit column selection instead of SELECT * to avoid loading large 'content' strings into memory.
+    // This supports 'Progressive Disclosure' and avoids massive string allocations since list tools don't need the full text.
+    let sql = "SELECT id, name, '' as content, area, project, tags, metadata, accessed_at, access_count, created_at, updated_at FROM memories WHERE 1=1";
+
+    if (hasArea) {
+      sql += " AND area = ?";
+    }
+
+    if (hasProject) {
+      sql += " AND project = ?";
+    }
+
+    if (hasTag) {
+      sql += " AND tags LIKE ? ESCAPE '\\'";
+    }
+
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    stmt = database.prepare(sql);
+    listMemoriesStmtCache.set(cacheKey, stmt);
+  }
+
   const params: (string | number)[] = [];
 
-  if (args.area) {
-    sql += " AND area = ?";
-    params.push(args.area);
+  if (hasArea) {
+    params.push(args.area as string);
   }
 
-  if (args.project) {
-    sql += " AND project = ?";
-    params.push(args.project);
+  if (hasProject) {
+    params.push(args.project as string);
   }
 
-  if (args.tag) {
-    sql += " AND tags LIKE ? ESCAPE '\\'";
-    params.push(`%"${escapeLikeWildcards(args.tag)}"%`);
+  if (hasTag) {
+    params.push(`%"${escapeLikeWildcards(args.tag as string)}"%`);
   }
 
-  sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
 
-  const stmt = database.prepare(sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
   const now = Date.now();
@@ -1180,6 +1204,7 @@ export function closeDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    listMemoriesStmtCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
     getMemoryRecordStmt = null;
@@ -1207,6 +1232,7 @@ export function resetDatabase(): void {
   if (db) {
     inStatementCache.clear();
     deleteInStatementCache.clear();
+    listMemoriesStmtCache.clear();
     getMemoryStmt = null;
     updateAccessedStmt = null;
     getMemoryRecordStmt = null;
