@@ -92,6 +92,9 @@ let getStatsTotalStmt: Database.Statement | null = null;
 let getStatsByAreaStmt: Database.Statement | null = null;
 let getStatsByProjectStmt: Database.Statement | null = null;
 let getStatsEventsStmt: Database.Statement | null = null;
+const listMemoriesStmtCache = new Map<string, Database.Statement>();
+const searchMemoriesStmtCache = new Map<string, Database.Statement>();
+const fallbackSearchStmtCache = new Map<string, Database.Statement>();
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -938,28 +941,35 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   // Bolt: Performance Optimization
   // Use explicit column selection instead of SELECT * to avoid loading large 'content' strings into memory.
   // This supports 'Progressive Disclosure' and avoids massive string allocations since list tools don't need the full text.
-  let sql = "SELECT id, name, '' as content, area, project, tags, metadata, accessed_at, access_count, created_at, updated_at FROM memories WHERE 1=1";
+  const cacheKey = `${!!args.area}-${!!args.project}-${!!args.tag}`;
+  let stmt = listMemoriesStmtCache.get(cacheKey);
+
+  if (!stmt) {
+    let sql = "SELECT id, name, '' as content, area, project, tags, metadata, accessed_at, access_count, created_at, updated_at FROM memories WHERE 1=1";
+
+    if (args.area) {
+      sql += " AND area = ?";
+    }
+
+    if (args.project) {
+      sql += " AND project = ?";
+    }
+
+    if (args.tag) {
+      sql += " AND tags LIKE ? ESCAPE '\\'";
+    }
+
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    stmt = database.prepare(sql);
+    listMemoriesStmtCache.set(cacheKey, stmt);
+  }
+
   const params: (string | number)[] = [];
-
-  if (args.area) {
-    sql += " AND area = ?";
-    params.push(args.area);
-  }
-
-  if (args.project) {
-    sql += " AND project = ?";
-    params.push(args.project);
-  }
-
-  if (args.tag) {
-    sql += " AND tags LIKE ? ESCAPE '\\'";
-    params.push(`%"${escapeLikeWildcards(args.tag)}"%`);
-  }
-
-  sql += " ORDER BY created_at DESC LIMIT ?";
+  if (args.area) params.push(args.area);
+  if (args.project) params.push(args.project);
+  if (args.tag) params.push(`%"${escapeLikeWildcards(args.tag)}"%`);
   params.push(limit);
 
-  const stmt = database.prepare(sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
   const now = Date.now();
@@ -1029,30 +1039,36 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
     // We'll filter results after search
   }
 
-  // Build SQL for FTS search
-  let sql = `
-    SELECT m.*, fts.rank as score
-    FROM memories m
-    JOIN memories_fts fts ON m.rowid = fts.rowid
-    WHERE memories_fts MATCH ?
-  `;
+  const cacheKey = `${!!args.area}-${!!args.project}`;
+  let stmt = searchMemoriesStmtCache.get(cacheKey);
+
+  if (!stmt) {
+    let sql = `
+      SELECT m.*, fts.rank as score
+      FROM memories m
+      JOIN memories_fts fts ON m.rowid = fts.rowid
+      WHERE memories_fts MATCH ?
+    `;
+
+    if (args.area) {
+      sql += " AND m.area = ?";
+    }
+
+    if (args.project) {
+      sql += " AND m.project = ?";
+    }
+
+    sql += " ORDER BY fts.rank LIMIT ?";
+    stmt = database.prepare(sql);
+    searchMemoriesStmtCache.set(cacheKey, stmt);
+  }
+
   const params: (string | number)[] = [ftsQuery];
-
-  if (args.area) {
-    sql += " AND m.area = ?";
-    params.push(args.area);
-  }
-
-  if (args.project) {
-    sql += " AND m.project = ?";
-    params.push(args.project);
-  }
-
-  sql += " ORDER BY fts.rank LIMIT ?";
+  if (args.area) params.push(args.area);
+  if (args.project) params.push(args.project);
   params.push(limit);
 
   try {
-    const stmt = database.prepare(sql);
     const rows = stmt.all(...params) as Array<MemoryRow & { score?: number }>;
 
     const queryTokens = tokenizeQuery(args.query);
@@ -1085,39 +1101,51 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   // Limit to 50 words to avoid SQLite parameter limit (max 999)
   const words = args.query.trim().split(/\s+/).filter(Boolean).slice(0, 50);
 
-  let sql = "SELECT * FROM memories WHERE 1=1";
+  const wordCount = words.length > 0 ? words.length : 'empty';
+  const cacheKey = `${!!args.area}-${!!args.project}-${wordCount}`;
+  let stmt = fallbackSearchStmtCache.get(cacheKey);
+
+  if (!stmt) {
+    let sql = "SELECT * FROM memories WHERE 1=1";
+
+    if (words.length > 0) {
+      for (let i = 0; i < words.length; i++) {
+        sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
+      }
+    } else {
+      sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
+    }
+
+    if (args.area) {
+      sql += " AND area = ?";
+    }
+
+    if (args.project) {
+      sql += " AND project = ?";
+    }
+
+    sql += " ORDER BY created_at DESC LIMIT ?";
+    stmt = database.prepare(sql);
+    fallbackSearchStmtCache.set(cacheKey, stmt);
+  }
+
   const params: (string | number)[] = [];
 
-  // If there are words, add a LIKE condition for each word
   if (words.length > 0) {
     for (const word of words) {
       const escapedWord = escapeLikeWildcards(word);
-      sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
       params.push(`%${escapedWord}%`, `%${escapedWord}%`, `%${escapedWord}%`, `%${escapedWord}%`);
     }
   } else {
-    // Fallback if empty query
-    // Truncate query to 1000 chars to avoid performance issues with extremely large strings
     const truncatedQuery = args.query.slice(0, 1000);
     const escapedTruncatedQuery = escapeLikeWildcards(truncatedQuery);
-    sql += " AND (COALESCE(name, '') LIKE ? ESCAPE '\\' OR content LIKE ? ESCAPE '\\' OR COALESCE(project, '') LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')";
     params.push(`%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`, `%${escapedTruncatedQuery}%`);
   }
 
-  if (args.area) {
-    sql += " AND area = ?";
-    params.push(args.area);
-  }
-
-  if (args.project) {
-    sql += " AND project = ?";
-    params.push(args.project);
-  }
-
-  sql += " ORDER BY created_at DESC LIMIT ?";
+  if (args.area) params.push(args.area);
+  if (args.project) params.push(args.project);
   params.push(limit);
 
-  const stmt = database.prepare(sql);
   const rows = stmt.all(...params) as MemoryRow[];
 
   const queryTokens = tokenizeQuery(args.query);
@@ -1178,6 +1206,9 @@ export function pruneMemories(args: PruneMemoryArgs): PruneMemoryResult {
 
 export function closeDatabase(): void {
   if (db) {
+    listMemoriesStmtCache.clear();
+    searchMemoriesStmtCache.clear();
+    fallbackSearchStmtCache.clear();
     inStatementCache.clear();
     deleteInStatementCache.clear();
     getMemoryStmt = null;
@@ -1205,6 +1236,9 @@ export { resolveStoragePaths, normalizeUserPath };
 // For testing
 export function resetDatabase(): void {
   if (db) {
+    listMemoriesStmtCache.clear();
+    searchMemoriesStmtCache.clear();
+    fallbackSearchStmtCache.clear();
     inStatementCache.clear();
     deleteInStatementCache.clear();
     getMemoryStmt = null;
