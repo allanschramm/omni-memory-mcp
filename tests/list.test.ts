@@ -116,6 +116,8 @@ describe("memory_list tool", () => {
         content: "Content",
         area: "general",
       });
+      // Bolt: Sleep briefly to ensure timestamps are deterministic for ORDER BY created_at DESC
+      await new Promise(r => setTimeout(r, 1000));
     }
 
     const response = await toolModule.handler({ limit: 2 });
@@ -127,7 +129,7 @@ describe("memory_list tool", () => {
     expect(text).toContain("Memory 5");
     expect(text).toContain("Memory 4");
     expect(text).not.toContain("Memory 3");
-  });
+  }, 10000);
 
   it("returns no memories found message without filters", async () => {
     const response = await toolModule.handler({});
