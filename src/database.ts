@@ -92,6 +92,9 @@ let getStatsTotalStmt: Database.Statement | null = null;
 let getStatsByAreaStmt: Database.Statement | null = null;
 let getStatsByProjectStmt: Database.Statement | null = null;
 let getStatsEventsStmt: Database.Statement | null = null;
+const listMemoriesStmtCache = new Map<string, Database.Statement>();
+const searchMemoriesStmtCache = new Map<string, Database.Statement>();
+const fallbackSearchStmtCache = new Map<string, Database.Statement>();
 
 /**
  * Returns a prepared statement for fetching full memory rows by IDs.
@@ -959,7 +962,13 @@ export function listMemories(args: ListMemoryArgs): Memory[] {
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
 
-  const stmt = database.prepare(sql);
+  const cacheKey = `${!!args.area}-${!!args.project}-${!!args.tag}`;
+  let stmt = listMemoriesStmtCache.get(cacheKey);
+  if (!stmt) {
+    stmt = database.prepare(sql);
+    listMemoriesStmtCache.set(cacheKey, stmt);
+  }
+
   const rows = stmt.all(...params) as MemoryRow[];
 
   const now = Date.now();
@@ -1052,7 +1061,12 @@ export function searchMemories(args: SearchMemoryArgs): SearchResult[] {
   params.push(limit);
 
   try {
-    const stmt = database.prepare(sql);
+    const cacheKey = `${!!args.area}-${!!args.project}`;
+    let stmt = searchMemoriesStmtCache.get(cacheKey);
+    if (!stmt) {
+      stmt = database.prepare(sql);
+      searchMemoriesStmtCache.set(cacheKey, stmt);
+    }
     const rows = stmt.all(...params) as Array<MemoryRow & { score?: number }>;
 
     const queryTokens = tokenizeQuery(args.query);
@@ -1117,7 +1131,12 @@ export function fallbackSearch(args: SearchMemoryArgs): SearchResult[] {
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
 
-  const stmt = database.prepare(sql);
+  const cacheKey = `${!!args.area}-${!!args.project}-${words.length}`;
+  let stmt = fallbackSearchStmtCache.get(cacheKey);
+  if (!stmt) {
+    stmt = database.prepare(sql);
+    fallbackSearchStmtCache.set(cacheKey, stmt);
+  }
   const rows = stmt.all(...params) as MemoryRow[];
 
   const queryTokens = tokenizeQuery(args.query);
@@ -1195,6 +1214,9 @@ export function closeDatabase(): void {
     getStatsByAreaStmt = null;
     getStatsByProjectStmt = null;
     getStatsEventsStmt = null;
+    listMemoriesStmtCache.clear();
+    searchMemoriesStmtCache.clear();
+    fallbackSearchStmtCache.clear();
     db.close();
     db = null;
   }
@@ -1222,6 +1244,9 @@ export function resetDatabase(): void {
     getStatsByAreaStmt = null;
     getStatsByProjectStmt = null;
     getStatsEventsStmt = null;
+    listMemoriesStmtCache.clear();
+    searchMemoriesStmtCache.clear();
+    fallbackSearchStmtCache.clear();
     db.exec("DROP TABLE IF EXISTS share_events");
     db.exec("DROP TABLE IF EXISTS memories");
     db.exec("DROP TABLE IF EXISTS memories_fts");
