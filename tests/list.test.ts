@@ -118,6 +118,13 @@ describe("memory_list tool", () => {
       });
     }
 
+    // Override the created_at to force correct sorting
+    const db = dbModule.getDatabase();
+    for (let i = 1; i <= 5; i++) {
+      const dbRow = db.prepare('SELECT id FROM memories WHERE name = ?').get(`Memory ${i}`) as { id: string };
+      db.prepare("UPDATE memories SET created_at = datetime('now', ?) WHERE id = ?").run(`+${i} seconds`, dbRow.id);
+    }
+
     const response = await toolModule.handler({ limit: 2 });
 
     expect(response.isError).toBeUndefined();
